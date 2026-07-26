@@ -30,26 +30,9 @@ using MatmulFn =
 // Creates a callback for `version`. topology must contain a value exactly when
 // that implementation requires one: hand-written kernels require a topology,
 // while implementations such as cuBLAS require std::nullopt.
-// Throws std::invalid_argument for an invalid version or topology presence.
+// The topology is validated and resolved against the active CUDA device once;
+// invoke the returned callback on that same device.
+// Throws std::invalid_argument for an invalid version or topology.
 [[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version, const std::optional<LaunchTopology>& topology);
-
-namespace detail {
-
-// Naive kernel.
-// One thread computes one output element via a straight triple loop.
-// No coalescing, no shared memory, no reuse. This is the baseline every
-// later stage is measured against.
-// Validates the topology against the active CUDA device when called; invoke
-// the returned callback on that same device.
-MatmulFn get_naive_matmul(const LaunchTopology& topology);
-
-// cuBLAS reference.
-// Wraps cublasSgemm(). This is the target every hand-written stage is measured
-// against.
-MatmulFn get_reference_matmul();
-
-// Callback factories for other matmul kernels will be added here.
-
-} // namespace detail
 
 } // namespace cuda_matmul_lab

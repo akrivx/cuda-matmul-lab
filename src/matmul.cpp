@@ -1,27 +1,11 @@
 #include "matmul.hpp"
 
+#include "matmul_detail.hpp"
+#include "matmul_validation.hpp"
+
 #include <stdexcept>
-#include <string_view>
 
 namespace cuda_matmul_lab {
-
-namespace {
-
-// Classifies implementation versions and rejects sentinels or invalid values.
-[[nodiscard]] bool needs_topology(MatmulVersion version) {
-    switch (version) {
-    case MatmulVersion::NAIVE:
-        return true;
-    case MatmulVersion::CUBLAS:
-        return false;
-    case MatmulVersion::COUNT:
-        break;
-    }
-
-    throw std::invalid_argument{"unknown matmul version"};
-}
-
-} // namespace
 
 [[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) {
     switch (version) {
@@ -37,13 +21,11 @@ namespace {
 }
 
 [[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version, const std::optional<LaunchTopology>& topology) {
-    if (needs_topology(version) != topology.has_value()) {
-        throw std::invalid_argument{"matmul topology does not match implementation requirements"};
-    }
+    auto resolved_topology = detail::validate_and_resolve_topology(version, topology);
 
     switch (version) {
     case MatmulVersion::NAIVE:
-        return detail::get_naive_matmul(*topology);
+        return detail::get_naive_matmul(*resolved_topology);
     case MatmulVersion::CUBLAS:
         return detail::get_reference_matmul();
     case MatmulVersion::COUNT:

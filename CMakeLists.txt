@@ -35,6 +35,9 @@ add_library(
     cuda_matmul_lab
     STATIC
         src/matmul.cpp
+        src/matmul_detail.hpp
+        src/matmul_validation.cpp
+        src/matmul_validation.hpp
         src/kernels/naive.cu
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)
@@ -64,6 +67,8 @@ target_include_directories(
     cuda_matmul_lab
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
 target_compile_features(

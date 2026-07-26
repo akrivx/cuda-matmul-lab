@@ -29,14 +29,12 @@ struct GridShape {
     unsigned z = 1;
 };
 
-// Launch settings for a hand-written CUDA kernel. Matrix dimensions are not
-// part of the topology: the launcher derives the required grid from the output
-// shape and clamps it to grid_cap (or the CUDA device limit when no cap is
-// supplied).
+// Requested launch settings for a hand-written CUDA kernel. An omitted
+// grid_cap means that the active CUDA device's maximum grid shape may be used.
 struct LaunchTopology {
     BlockShape block;
-    std::optional<TileShape> tile;
     std::optional<GridShape> grid_cap;
+    std::optional<TileShape> tile;
 };
 
 } // namespace cuda_matmul_lab
