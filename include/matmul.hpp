@@ -24,29 +24,16 @@ enum class MatmulVersion {
 using MatmulFn =
     std::function<void(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream)>;
 
-[[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) noexcept;
+// Throws std::invalid_argument if version is not an implementation.
+[[nodiscard]] std::string_view get_matmul_name(MatmulVersion version);
 
 // Creates a callback for `version`. topology must contain a value exactly when
 // that implementation requires one: hand-written kernels require a topology,
 // while implementations such as cuBLAS require std::nullopt.
-[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version,
-                                           const std::optional<LaunchTopology>& topology);
+// Throws std::invalid_argument for an invalid version or topology presence.
+[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version, const std::optional<LaunchTopology>& topology);
 
 namespace detail {
-
-// Classifies valid implementation versions for topology validation. Add each
-// new version here when it is introduced.
-[[nodiscard]] constexpr bool needs_topology(MatmulVersion version) noexcept {
-    switch (version) {
-    case MatmulVersion::NAIVE:
-        return true;
-    case MatmulVersion::CUBLAS:
-    case MatmulVersion::COUNT:
-        return false;
-    }
-
-    return false;
-}
 
 // Naive kernel.
 // One thread computes one output element via a straight triple loop.

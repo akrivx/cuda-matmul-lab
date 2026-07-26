@@ -34,9 +34,17 @@ find_package(CUDAToolkit REQUIRED)
 add_library(
     cuda_matmul_lab
     STATIC
+        src/matmul.cpp
         src/kernels/naive.cu
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)
+
+# Give mixed C++/CUDA Visual Studio builds an explicit compiler PDB filename.
+# Without it, some CMake/VS combinations use the intermediate directory itself
+# as ProgramDataBaseFileName.
+if(MSVC)
+    set_target_properties(cuda_matmul_lab PROPERTIES COMPILE_PDB_NAME cuda_matmul_lab)
+endif()
 
 target_sources(
     cuda_matmul_lab
