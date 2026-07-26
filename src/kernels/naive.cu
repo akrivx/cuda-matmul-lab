@@ -38,12 +38,6 @@ namespace cuda_matmul_lab::detail {
 
 void launch_naive_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                          const ResolvedLaunchTopology& topology, cudaStream_t stream) {
-    // CUDA does not permit a zero-sized grid. An output with no elements is
-    // already complete and requires no launch.
-    if (C.extent(0) == 0 || C.extent(1) == 0) {
-        return;
-    }
-
     // CUDA x deliberately covers matrix rows in this baseline. The grid may
     // be capped; the kernel's grid-stride loops cover any remainder.
     const auto required_blocks_x = cuda::ceil_div(C.extent(0), std::size_t{topology.block.x});

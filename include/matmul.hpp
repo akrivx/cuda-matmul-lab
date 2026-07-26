@@ -20,7 +20,8 @@ enum class MatmulVersion {
 // Common signature shared by every implementation under study.
 // Enqueues C = A * B on stream, where A is MxK, B is KxN, and C is MxN.
 // Every view refers to device memory and must remain valid until the queued
-// work completes.
+// work completes. A callback may own mutable library state and is not required
+// to support concurrent invocations.
 using MatmulFn =
     std::function<void(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream)>;
 

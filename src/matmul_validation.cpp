@@ -62,11 +62,45 @@ struct TopologyPolicy {
 
 } // namespace
 
-void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C) {
+void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                            std::size_t max_extent, std::size_t max_stride) {
     if (A.extent(0) != C.extent(0) || B.extent(1) != C.extent(1) || A.extent(1) != B.extent(0)) {
         std::ostringstream out;
         out << "invalid matrix dimensions (A=" << A.extent(0) << 'x' << A.extent(1) << ", B=" << B.extent(0) << 'x'
             << B.extent(1) << ", C=" << C.extent(0) << 'x' << C.extent(1) << ')';
+        throw std::invalid_argument{out.str()};
+    }
+
+    const std::size_t M = C.extent(0);
+    const std::size_t N = C.extent(1);
+    const std::size_t K = A.extent(1);
+    if (M == 0 || N == 0 || K == 0) {
+        std::ostringstream out;
+        out << "matrix dimensions M, N, and K must be positive (M=" << M << ", N=" << N << ", K=" << K << ')';
+        throw std::invalid_argument{out.str()};
+    }
+
+    if (A.stride(1) != 1 || B.stride(1) != 1 || C.stride(1) != 1 || A.stride(0) < A.extent(1) ||
+        B.stride(0) < B.extent(1) || C.stride(0) < C.extent(1)) {
+        throw std::invalid_argument{"matrix views must use row-major layout with valid row strides"};
+    }
+
+    if (A.data_handle() == nullptr || B.data_handle() == nullptr || C.data_handle() == nullptr) {
+        throw std::invalid_argument{"non-empty matrix views must have non-null data pointers"};
+    }
+
+    if (max_extent != 0 && (M > max_extent || N > max_extent || K > max_extent)) {
+        std::ostringstream out;
+        out << "matrix dimensions exceed max extent (max_extent=" << max_extent << ", M=" << M << ", N=" << N
+            << ", K=" << K << ')';
+        throw std::invalid_argument{out.str()};
+    }
+
+    if (max_stride != 0 &&
+        (A.stride(0) > max_stride || B.stride(0) > max_stride || C.stride(0) > max_stride)) {
+        std::ostringstream out;
+        out << "matrix row strides exceed max stride (max_stride=" << max_stride << ", A=" << A.stride(0)
+            << ", B=" << B.stride(0) << ", C=" << C.stride(0) << ')';
         throw std::invalid_argument{out.str()};
     }
 }
