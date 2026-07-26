@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -18,8 +19,21 @@ struct MatmulShape {
     std::size_t k = 1024;
 };
 
+// One implementation/topology combination to benchmark. Multiple cases may
+// select the same version with different topologies. `label`, when non-empty,
+// distinguishes cases in reports; otherwise get_matmul_name(version) is used.
+//
+// Library implementations such as cuBLAS use a null topology. Hand-written
+// kernels require an explicit topology so results are reproducible.
+struct BenchmarkCase {
+    MatmulVersion version;
+    std::optional<LaunchTopology> topology;
+    std::string label;
+};
+
 struct BenchmarkResult {
     std::string name;
+    std::optional<LaunchTopology> topology;
     double mean_ms = 0.0;
     double median_ms = 0.0;
     double min_ms = 0.0;
@@ -32,12 +46,18 @@ struct BenchmarkResult {
 struct BenchmarkConfig {
     std::size_t warmup_iterations = 5;
     std::size_t timed_iterations = 5;
+
     // An element passes when:
     // abs(actual - reference) <= absolute_tolerance
     //                          + relative_tolerance * abs(reference).
     double absolute_tolerance = 1e-4;
     double relative_tolerance = 1e-3;
     std::uint64_t random_seed = 0xC0FFEE;
+
+    // Cases are supplied explicitly by the application, and may eventually be
+    // loaded from a configuration file. Hand-written kernels require a
+    // topology; library implementations such as cuBLAS require std::nullopt.
+    std::vector<BenchmarkCase> cases;
 };
 
 // Enqueues warm-up and timed invocations on `stream`, measures the timed
@@ -49,18 +69,19 @@ struct BenchmarkConfig {
 // memory. Their extents must describe A[M,K] * B[K,N] = C[M,N].
 //
 // `gflops` is the conventional 2*M*N*K operation count divided by median_ms.
-[[nodiscard]] BenchmarkResult run_benchmark(std::string_view name, const MatmulFn& matmul,
+[[nodiscard]] BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const MatmulFn& matmul,
                                             const BenchmarkConfig& config, MatrixView<const float> host_reference,
                                             MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                                             cudaStream_t stream);
 
 // Allocates inputs and outputs, generates deterministic random input matrices,
-// computes a reference result, then benchmarks every registered implementation.
+// computes a reference result, then benchmarks every case in config.cases.
 // Allocation, initialization, transfers, and callback construction are not
 // included in the timed intervals.
 [[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, const BenchmarkConfig& config);
 
-// Writes a benchmark run's results as a Markdown table.
+// Writes a benchmark run's results as a Markdown table, including block, tile,
+// and grid-cap columns when topology information is present.
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
                   std::span<const BenchmarkResult> results);
 

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string_view>
 
 #include <cuda_runtime_api.h>
 
+#include "launch_topology.hpp"
 #include "matrix_view.hpp"
 
 namespace cuda_matmul_lab {
@@ -24,16 +26,35 @@ using MatmulFn =
 
 [[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) noexcept;
 
-// Looks up a matmul callback.
-[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version);
+// Creates a callback for `version`. topology must contain a value exactly when
+// that implementation requires one: hand-written kernels require a topology,
+// while implementations such as cuBLAS require std::nullopt.
+[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version,
+                                           const std::optional<LaunchTopology>& topology);
 
 namespace detail {
+
+// Classifies valid implementation versions for topology validation. Add each
+// new version here when it is introduced.
+[[nodiscard]] constexpr bool needs_topology(MatmulVersion version) noexcept {
+    switch (version) {
+    case MatmulVersion::NAIVE:
+        return true;
+    case MatmulVersion::CUBLAS:
+    case MatmulVersion::COUNT:
+        return false;
+    }
+
+    return false;
+}
 
 // Naive kernel.
 // One thread computes one output element via a straight triple loop.
 // No coalescing, no shared memory, no reuse. This is the baseline every
 // later stage is measured against.
-MatmulFn get_naive_matmul();
+// Validates the topology against the active CUDA device when called; invoke
+// the returned callback on that same device.
+MatmulFn get_naive_matmul(const LaunchTopology& topology);
 
 // cuBLAS reference.
 // Wraps cublasSgemm(). This is the target every hand-written stage is measured
