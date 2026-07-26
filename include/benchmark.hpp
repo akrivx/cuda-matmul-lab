@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -65,6 +66,6 @@ run_all_benchmarks(MatmulShape shape, const BenchmarkConfig& config);
 // Writes a benchmark run's results as a Markdown table.
 void write_report(std::ostream& out, std::string_view stage_title,
                   MatmulShape shape, const BenchmarkConfig& config,
-                  const std::vector<BenchmarkResult>& results);
+                  std::span<const BenchmarkResult> results);
 
 } // namespace cuda_matmul_lab
