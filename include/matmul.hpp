@@ -9,7 +9,7 @@
 
 namespace cuda_matmul_lab {
 
-enum class MatmulKernel {
+enum class MatmulVersion {
     NAIVE = 0, // One thread per output element
     CUBLAS,    // cuBLAS reference
     COUNT
@@ -23,10 +23,10 @@ using MatmulFn =
     std::function<void(MatrixView<const float> A, MatrixView<const float> B,
                        MatrixView<float> C, cudaStream_t stream)>;
 
-[[nodiscard]] std::string_view get_matmul_name(MatmulKernel version) noexcept;
+[[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) noexcept;
 
 // Looks up a matmul callback.
-[[nodiscard]] MatmulFn get_matmul_callback(MatmulKernel version);
+[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version);
 
 namespace detail {
 

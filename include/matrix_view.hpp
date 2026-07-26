@@ -18,7 +18,7 @@ using MatrixView =
 
 template <typename Element>
 [[nodiscard]] constexpr MatrixView<Element>
-make_matrix_view(Element *data, std::size_t rows, std::size_t columns,
+make_matrix_view(Element* data, std::size_t rows, std::size_t columns,
                  std::size_t leading_dimension) noexcept {
     assert(leading_dimension > 0);
     assert(leading_dimension >= columns);
@@ -32,7 +32,7 @@ make_matrix_view(Element *data, std::size_t rows, std::size_t columns,
 
 template <typename Element>
 [[nodiscard]] constexpr MatrixView<Element>
-make_matrix_view(Element *data, std::size_t rows,
+make_matrix_view(Element* data, std::size_t rows,
                  std::size_t columns) noexcept {
     return make_matrix_view(data, rows, columns, columns == 0 ? 1 : columns);
 }

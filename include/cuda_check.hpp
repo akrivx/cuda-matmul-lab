@@ -8,8 +8,8 @@
 
 namespace cuda_matmul_lab::detail {
 
-inline void check_cuda_error(cudaError_t status, const char *expression,
-                             const char *file, int line) noexcept {
+inline void check_cuda_error(cudaError_t status, const char* expression,
+                             const char* file, int line) noexcept {
     if (status != cudaSuccess) {
         std::fprintf(stderr,
                      "CUDA call failed at %s:%d\n"
@@ -21,8 +21,8 @@ inline void check_cuda_error(cudaError_t status, const char *expression,
     }
 }
 
-inline void check_cublas_status(cublasStatus_t status, const char *expression,
-                                const char *file, int line) noexcept {
+inline void check_cublas_status(cublasStatus_t status, const char* expression,
+                                const char* file, int line) noexcept {
     if (status != CUBLAS_STATUS_SUCCESS) {
         std::fprintf(stderr,
                      "cuBLAS call failed at %s:%d\n"
