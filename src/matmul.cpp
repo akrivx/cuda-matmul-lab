@@ -1,5 +1,6 @@
 #include "matmul.hpp"
 
+#include "backends/cublas.hpp"
 #include "matmul_factories.hpp"
 #include "matmul_validation.hpp"
 
@@ -27,7 +28,7 @@ namespace cuda_matmul_lab {
     case MatmulVersion::NAIVE:
         return detail::get_naive_matmul(*resolved_topology);
     case MatmulVersion::CUBLAS:
-        return detail::get_reference_matmul();
+        return detail::get_cublas_matmul();
     case MatmulVersion::COUNT:
         break;
     }

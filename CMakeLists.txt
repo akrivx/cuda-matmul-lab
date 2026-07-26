@@ -34,6 +34,8 @@ find_package(CUDAToolkit REQUIRED)
 add_library(
     cuda_matmul_lab
     STATIC
+        src/backends/cublas.cpp
+        src/backends/cublas.hpp
         src/matmul.cpp
         src/matmul_factories.cpp
         src/matmul_factories.hpp
