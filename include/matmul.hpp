@@ -20,8 +20,7 @@ enum class MatmulVersion {
 // Every view refers to device memory and must remain valid until the queued
 // work completes.
 using MatmulFn =
-    std::function<void(MatrixView<const float> A, MatrixView<const float> B,
-                       MatrixView<float> C, cudaStream_t stream)>;
+    std::function<void(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream)>;
 
 [[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) noexcept;
 

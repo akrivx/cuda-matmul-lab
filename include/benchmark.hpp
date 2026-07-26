@@ -49,23 +49,19 @@ struct BenchmarkConfig {
 // memory. Their extents must describe A[M,K] * B[K,N] = C[M,N].
 //
 // `gflops` is the conventional 2*M*N*K operation count divided by median_ms.
-[[nodiscard]] BenchmarkResult
-run_benchmark(std::string_view name, const MatmulFn& matmul,
-              const BenchmarkConfig& config,
-              MatrixView<const float> host_reference, MatrixView<const float> A,
-              MatrixView<const float> B, MatrixView<float> C,
-              cudaStream_t stream);
+[[nodiscard]] BenchmarkResult run_benchmark(std::string_view name, const MatmulFn& matmul,
+                                            const BenchmarkConfig& config, MatrixView<const float> host_reference,
+                                            MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                                            cudaStream_t stream);
 
 // Allocates inputs and outputs, generates deterministic random input matrices,
 // computes a reference result, then benchmarks every registered implementation.
 // Allocation, initialization, transfers, and callback construction are not
 // included in the timed intervals.
-[[nodiscard]] std::vector<BenchmarkResult>
-run_all_benchmarks(MatmulShape shape, const BenchmarkConfig& config);
+[[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, const BenchmarkConfig& config);
 
 // Writes a benchmark run's results as a Markdown table.
-void write_report(std::ostream& out, std::string_view stage_title,
-                  MatmulShape shape, const BenchmarkConfig& config,
+void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
                   std::span<const BenchmarkResult> results);
 
 } // namespace cuda_matmul_lab
