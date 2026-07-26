@@ -1,6 +1,6 @@
 #include "matmul.hpp"
 
-#include "matmul_detail.hpp"
+#include "matmul_factories.hpp"
 #include "matmul_validation.hpp"
 
 #include <stdexcept>

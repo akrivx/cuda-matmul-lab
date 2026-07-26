@@ -3,8 +3,8 @@
 #include <optional>
 
 #include "matmul.hpp"
-#include "matmul_detail.hpp"
 #include "matrix_view.hpp"
+#include "resolved_launch_topology.hpp"
 
 namespace cuda_matmul_lab::detail {
 

@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 
 #include "cuda_check.hpp"
-#include "matmul_detail.hpp"
+#include "matmul_factories.hpp"
 #include "matmul_validation.hpp"
 
 using cuda_matmul_lab::MatrixView;
