@@ -41,6 +41,7 @@ target_sources(
     TYPE HEADERS
     BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
     FILES
+      include/benchmark.hpp
       include/cuda_check.hpp
       include/matrix_view.hpp
       include/matmul.hpp
