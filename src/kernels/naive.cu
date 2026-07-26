@@ -1,14 +1,12 @@
 #include <algorithm>
 #include <cstddef>
-#include <utility>
 
 #include <cuda/cmath>
 
 #include <cuda_runtime.h>
 
 #include "cuda_check.hpp"
-#include "matmul_factories.hpp"
-#include "matmul_validation.hpp"
+#include "kernels/matmul_kernel_launchers.hpp"
 
 using cuda_matmul_lab::MatrixView;
 
@@ -38,28 +36,25 @@ __global__ void naive_matmul_kernel(MatrixView<const float> A, MatrixView<const 
 
 namespace cuda_matmul_lab::detail {
 
-MatmulFn get_naive_matmul(const ResolvedLaunchTopology& topology) {
-    return [topology](MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream) {
-        validate_matrix_shapes(A, B, C);
+void launch_naive_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                         const ResolvedLaunchTopology& topology, cudaStream_t stream) {
+    // CUDA does not permit a zero-sized grid. An output with no elements is
+    // already complete and requires no launch.
+    if (C.extent(0) == 0 || C.extent(1) == 0) {
+        return;
+    }
 
-        // CUDA does not permit a zero-sized grid. An output with no elements is
-        // already complete and requires no launch.
-        if (C.extent(0) == 0 || C.extent(1) == 0) {
-            return;
-        }
+    // CUDA x deliberately covers matrix rows in this baseline. The grid may
+    // be capped; the kernel's grid-stride loops cover any remainder.
+    const auto required_blocks_x = cuda::ceil_div(C.extent(0), std::size_t{topology.block.x});
+    const auto required_blocks_y = cuda::ceil_div(C.extent(1), std::size_t{topology.block.y});
+    const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
+    const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
 
-        // CUDA x deliberately covers matrix rows in this baseline. The grid
-        // may be capped; the kernel's grid-stride loops cover any remainder.
-        const auto required_blocks_x = cuda::ceil_div(C.extent(0), std::size_t{topology.block.x});
-        const auto required_blocks_y = cuda::ceil_div(C.extent(1), std::size_t{topology.block.y});
-        const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
-        const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
-
-        const dim3 block{topology.block.x, topology.block.y, 1};
-        const dim3 grid{grid_x, grid_y, 1};
-        naive_matmul_kernel<<<grid, block, 0, stream>>>(A, B, C);
-        CUDA_CHECK(cudaGetLastError());
-    };
+    const dim3 block{topology.block.x, topology.block.y, 1};
+    const dim3 grid{grid_x, grid_y, 1};
+    naive_matmul_kernel<<<grid, block, 0, stream>>>(A, B, C);
+    CUDA_CHECK(cudaGetLastError());
 }
 
 } // namespace cuda_matmul_lab::detail

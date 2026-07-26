@@ -35,10 +35,12 @@ add_library(
     cuda_matmul_lab
     STATIC
         src/matmul.cpp
+        src/matmul_factories.cpp
         src/matmul_factories.hpp
         src/matmul_validation.cpp
         src/matmul_validation.hpp
         src/resolved_launch_topology.hpp
+        src/kernels/matmul_kernel_launchers.hpp
         src/kernels/naive.cu
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)
