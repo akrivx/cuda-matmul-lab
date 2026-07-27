@@ -96,8 +96,7 @@ void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B
         throw std::invalid_argument{out.str()};
     }
 
-    if (max_stride != 0 &&
-        (A.stride(0) > max_stride || B.stride(0) > max_stride || C.stride(0) > max_stride)) {
+    if (max_stride != 0 && (A.stride(0) > max_stride || B.stride(0) > max_stride || C.stride(0) > max_stride)) {
         std::ostringstream out;
         out << "matrix row strides exceed max stride (max_stride=" << max_stride << ", A=" << A.stride(0)
             << ", B=" << B.stride(0) << ", C=" << C.stride(0) << ')';

@@ -8,9 +8,8 @@
 
 namespace cuda_matmul_lab {
 
-// A non-owning row-major view. The leading dimension is the stride, in
-// elements, between successive rows and may include row padding. The pointer's
-// memory space is determined by the caller.
+// A non-owning row-major view. The leading dimension is the stride, in elements, between successive rows and may
+// include row padding. The pointer's memory space is determined by the caller.
 template <typename Element>
 using MatrixView = cuda::std::mdspan<Element, cuda::std::dextents<std::size_t, 2>, cuda::std::layout_stride>;
 

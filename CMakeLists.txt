@@ -7,12 +7,11 @@ project(
     LANGUAGES CXX CUDA
 )
 
-# For benchmark builds, select the local GPU explicitly with
-# -DCMAKE_CUDA_ARCHITECTURES=native. It is intentionally not the default so
-# that configuration also works on machines without a visible NVIDIA GPU.
+# For benchmark builds, select the local GPU explicitly with -DCMAKE_CUDA_ARCHITECTURES=native. It is intentionally not
+# the default so that configuration also works on machines without a visible NVIDIA GPU.
 
-# CUDA 13.0 supports CUDA C++ through C++20. Host-only sources can use C++23.
-# Both defaults remain overridable from the CMake command line.
+# CUDA 13.0 supports CUDA C++ through C++20. Host-only sources can use C++23. Both defaults remain overridable from the
+# CMake command line.
 if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 23)
 endif()
@@ -29,8 +28,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(CUDAToolkit REQUIRED)
 
-# Kernel implementations and shared build requirements for every SGEMM stage.
-# Link each executable to cuda_matmul_lab::cuda_matmul_lab.
+# Kernel implementations and shared build requirements for every SGEMM stage. Link each executable to
+# cuda_matmul_lab::cuda_matmul_lab.
 add_library(
     cuda_matmul_lab
     STATIC
@@ -47,9 +46,8 @@ add_library(
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)
 
-# Give mixed C++/CUDA Visual Studio builds an explicit compiler PDB filename.
-# Without it, some CMake/VS combinations use the intermediate directory itself
-# as ProgramDataBaseFileName.
+# Give mixed C++/CUDA Visual Studio builds an explicit compiler PDB filename. Without it, some CMake/VS combinations use
+# the intermediate directory itself as ProgramDataBaseFileName.
 if(MSVC)
     set_target_properties(cuda_matmul_lab PROPERTIES COMPILE_PDB_NAME cuda_matmul_lab)
 endif()

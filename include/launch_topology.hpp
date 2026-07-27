@@ -4,33 +4,28 @@
 
 namespace cuda_matmul_lab {
 
-// Dimensions of a CUDA thread block. Kernel factories must reject shapes that
-// are unsupported by the selected implementation or the active CUDA device.
+// CUDA thread-block dimensions, validated by kernel factories against the implementation and active device.
 struct BlockShape {
     unsigned x;
     unsigned y;
     unsigned z = 1;
 };
 
-// Logical output and reduction tile dimensions used by tiled kernels. This is
-// optional because simple kernels and library implementations do not expose a
-// tile shape.
+// Optional logical output and reduction tile dimensions exposed by tiled kernels.
 struct TileShape {
     unsigned m;
     unsigned n;
     unsigned k;
 };
 
-// Number of blocks to launch in each grid dimension. Used for capped launches,
-// which require the kernel to cover the remaining work with grid-stride loops.
+// Maximum blocks to launch in each grid dimension; grid-stride loops must cover work beyond this cap.
 struct GridShape {
     unsigned x;
     unsigned y;
     unsigned z = 1;
 };
 
-// Requested launch settings for a hand-written CUDA kernel. An omitted
-// grid_cap means that the active CUDA device's maximum grid shape may be used.
+// Requested launch settings for a hand-written CUDA kernel. An omitted `grid_cap` uses the active device's grid limit.
 struct LaunchTopology {
     BlockShape block;
     std::optional<GridShape> grid_cap;

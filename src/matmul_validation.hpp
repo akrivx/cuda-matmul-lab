@@ -9,13 +9,12 @@
 
 namespace cuda_matmul_lab::detail {
 
-// Validates compatible, non-empty row-major views. A zero limit means
-// unlimited; otherwise extents and row strides are checked independently.
+// Validates compatible, non-empty row-major views, with independent optional limits for extents and row strides.
 void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                             std::size_t max_extent = 0, std::size_t max_stride = 0);
 
-// Validates the version-specific topology policy and CUDA device limits, then
-// resolves an omitted grid cap. A library implementation returns std::nullopt.
+// Validates topology policy and device limits, then resolves an omitted grid cap; library backends return
+// `std::nullopt`.
 [[nodiscard]] std::optional<ResolvedLaunchTopology>
 validate_and_resolve_topology(MatmulVersion version, const std::optional<LaunchTopology>& topology);
 

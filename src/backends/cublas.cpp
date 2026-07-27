@@ -41,9 +41,8 @@ MatmulFn get_cublas_matmul() {
 
         CUBLAS_CHECK(cublasSetStream(handle->handle, stream));
 
-        // A row-major MxK matrix is a column-major KxM matrix over the same
-        // storage. Compute C^T = B^T * A^T so cuBLAS writes row-major C,
-        // preserving each view's padded row stride as the leading dimension.
+        // A row-major MxK matrix is a column-major KxM matrix over the same storage. Compute C^T = B^T * A^T so cuBLAS
+        // writes row-major C, preserving each view's padded row stride as the leading dimension.
         CUBLAS_CHECK(cublasSgemm(handle->handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B.data_handle(), lda,
                                  A.data_handle(), ldb, &beta, C.data_handle(), ldc));
     };
