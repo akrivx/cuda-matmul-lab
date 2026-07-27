@@ -20,13 +20,12 @@ struct MatmulShape {
 };
 
 // One implementation/topology combination to benchmark. Multiple cases may select the same version with different
-// topologies. `label`, when non-empty, distinguishes cases in reports; otherwise `get_matmul_name(version)` is used.
+// topologies. Reports derive each case's label from `version` and `topology`.
 //
 // cuBLAS uses a null topology; hand-written kernels require an explicit topology for reproducibility.
 struct BenchmarkCase {
     MatmulVersion version;
     std::optional<LaunchTopology> topology;
-    std::string label;
 };
 
 struct BenchmarkResult {
