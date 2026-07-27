@@ -13,6 +13,7 @@
 
 namespace cuda_matmul_lab {
 
+// Logical dimensions for A[M,K] * B[K,N] = C[M,N].
 struct MatmulShape {
     std::size_t m = 1024;
     std::size_t n = 1024;
@@ -28,6 +29,8 @@ struct BenchmarkCase {
     std::optional<LaunchTopology> topology;
 };
 
+// Timing and correctness metrics for one benchmark case. All time values are milliseconds, and `gflops` uses
+// `median_ms`. `max_rel_error` is reference-relative and becomes infinity for nonzero error against a zero reference.
 struct BenchmarkResult {
     std::string name;
     std::optional<LaunchTopology> topology;
@@ -40,6 +43,7 @@ struct BenchmarkResult {
     bool correctness_passed = false;
 };
 
+// Measurement, correctness, and deterministic input-generation settings shared by benchmark cases.
 struct BenchmarkConfig {
     std::size_t warmup_iterations = 5;
     std::size_t timed_iterations = 5;
@@ -50,26 +54,24 @@ struct BenchmarkConfig {
     double absolute_tolerance = 1e-4;
     double relative_tolerance = 1e-3;
     std::uint64_t random_seed = 0xC0FFEE;
-
-    // Cases are supplied explicitly by the application and may eventually be loaded from a configuration file.
-    // Hand-written kernels require a topology; library implementations such as cuBLAS require `std::nullopt`.
-    std::vector<BenchmarkCase> cases;
 };
 
-// Enqueues warm-up and timed invocations of a matmul callback on `stream`, measures the timed interval with CUDA events
-// recorded on that stream, and validates the final output against `host_reference`.
+// Enqueues warm-up and timed invocations of `benchmark_case` on `stream`, measures each timed invocation with CUDA
+// events on that stream, and validates the final output against `host_reference`. Callback construction is not timed.
 //
 // `A` and `B` refer to device-accessible input matrices, `C` refers to a device-accessible output matrix, and
 // `host_reference` refers to host-accessible memory. Their extents must describe `A[M,K] * B[K,N] = C[M,N]`.
 //
 // `gflops` is the conventional `2 * M * N * K` operation count divided by `median_ms`.
+// Throws `std::invalid_argument` for invalid configuration, matrix views, or implementation settings.
 [[nodiscard]] BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const BenchmarkConfig& config,
                                             MatrixView<const float> host_reference, MatrixView<const float> A,
                                             MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream);
 
-// Allocates inputs and outputs, generates deterministic random inputs, computes a reference, and benchmarks every case
-// in `config.cases`. Allocation, initialization, transfers, and callback construction are outside the timed intervals.
-[[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, const BenchmarkConfig& config);
+// Allocates inputs and outputs, generates deterministic random inputs, computes a reference, and benchmarks `cases`.
+// Allocation, initialization, transfers, and callback construction are outside the timed intervals.
+[[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<const BenchmarkCase> cases,
+                                                              const BenchmarkConfig& config);
 
 // Writes results as a Markdown table, adding block, tile, and grid-cap columns when topology information is available.
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
