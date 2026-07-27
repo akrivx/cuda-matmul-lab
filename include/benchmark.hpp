@@ -68,10 +68,11 @@ struct BenchmarkConfig {
                                             MatrixView<const float> host_reference, MatrixView<const float> A,
                                             MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream);
 
-// Allocates inputs and outputs, generates deterministic random inputs, computes a reference, and benchmarks `cases`.
-// Allocation, initialization, transfers, and callback construction are outside the timed intervals.
+// Allocates inputs and outputs, generates deterministic random inputs, computes a reference, and benchmarks `cases`
+// using `stream`. Returns only after all associated CUDA work and result transfers have completed. Allocation,
+// initialization, transfers, and callback construction are outside the timed intervals.
 [[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<const BenchmarkCase> cases,
-                                                              const BenchmarkConfig& config);
+                                                              const BenchmarkConfig& config, cudaStream_t stream);
 
 // Writes results as a Markdown table, adding block, tile, and grid-cap columns when topology information is available.
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,

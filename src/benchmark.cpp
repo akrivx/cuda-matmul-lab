@@ -1,11 +1,13 @@
 #include "benchmark.hpp"
 
 #include "cuda_check.hpp"
+#include "matmul_validation.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -104,6 +106,32 @@ void validate_benchmark_inputs(const BenchmarkConfig& config, MatrixView<const f
     return lhs * rhs;
 }
 
+// Fills a host-accessible matrix with values uniformly distributed in [-1, 1).
+void fill_random_matrix(MatrixView<float> matrix, std::mt19937_64& generator) {
+    std::uniform_real_distribution<float> distribution{-1.0f, 1.0f};
+
+    for (std::size_t row = 0; row < matrix.extent(0); ++row) {
+        for (std::size_t column = 0; column < matrix.extent(1); ++column) {
+            matrix(row, column) = distribution(generator);
+        }
+    }
+}
+
+void copy_matrix_async(MatrixView<const float> src, MatrixView<float> dst, cudaMemcpyKind kind, cudaStream_t stream) {
+    if (src.extent(0) != dst.extent(0) || src.extent(1) != dst.extent(1)) {
+        throw std::invalid_argument{"src and dst matrix dimensions must match"};
+    }
+
+    const std::size_t src_pitch_bytes =
+        checked_product(src.stride(0), sizeof(float), "src matrix row pitch exceeds size_t");
+    const std::size_t dst_pitch_bytes =
+        checked_product(dst.stride(0), sizeof(float), "dst matrix row pitch exceeds size_t");
+    const std::size_t row_size_bytes = checked_product(src.extent(1), sizeof(float), "matrix row size exceeds size_t");
+
+    CUDA_CHECK(cudaMemcpy2DAsync(dst.data_handle(), dst_pitch_bytes, src.data_handle(), src_pitch_bytes, row_size_bytes,
+                                 src.extent(0), kind, stream));
+}
+
 struct UniqueCudaEvent {
     UniqueCudaEvent(const UniqueCudaEvent&) = delete;
     UniqueCudaEvent& operator=(const UniqueCudaEvent&) = delete;
@@ -145,7 +173,7 @@ class UniqueCudaMatrixStorage {
         void operator()(float* ptr) const noexcept { CUDA_CHECK(cudaFree(ptr)); }
     };
 
-    std::size_t leading_dimension() const noexcept { return pitch_bytes_ / sizeof(float); }
+    [[nodiscard]] std::size_t leading_dimension() const noexcept { return pitch_bytes_ / sizeof(float); }
 
     std::unique_ptr<float, Deleter> data_;
     std::size_t rows_;
@@ -222,6 +250,60 @@ BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const Benchma
         .max_rel_error = correctness.max_rel_error,
         .correctness_passed = correctness.passed,
     };
+}
+
+std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<const BenchmarkCase> cases,
+                                                const BenchmarkConfig& config, cudaStream_t stream) {
+    detail::validate_matmul_dimensions(shape.m, shape.n, shape.k);
+
+    const std::size_t a_element_count = checked_product(shape.m, shape.k, "A element count exceeds size_t");
+    const std::size_t b_element_count = checked_product(shape.k, shape.n, "B element count exceeds size_t");
+    const std::size_t c_element_count = checked_product(shape.m, shape.n, "C element count exceeds size_t");
+
+    auto host_a_storage = std::make_unique_for_overwrite<float[]>(a_element_count);
+    auto host_b_storage = std::make_unique_for_overwrite<float[]>(b_element_count);
+    auto host_reference_storage = std::make_unique_for_overwrite<float[]>(c_element_count);
+
+    UniqueCudaMatrixStorage device_a_storage{shape.m, shape.k};
+    UniqueCudaMatrixStorage device_b_storage{shape.k, shape.n};
+    UniqueCudaMatrixStorage device_c_storage{shape.m, shape.n};
+
+    {
+        std::mt19937_64 generator{config.random_seed};
+        auto host_a = make_matrix_view(host_a_storage.get(), shape.m, shape.k);
+        auto host_b = make_matrix_view(host_b_storage.get(), shape.k, shape.n);
+        fill_random_matrix(host_a, generator);
+        fill_random_matrix(host_b, generator);
+        copy_matrix_async(host_a, device_a_storage.view(), cudaMemcpyHostToDevice, stream);
+        copy_matrix_async(host_b, device_b_storage.view(), cudaMemcpyHostToDevice, stream);
+    }
+
+    {
+        auto host_reference_output = make_matrix_view(host_reference_storage.get(), shape.m, shape.n);
+        auto reference_matmul = get_matmul_callback(MatmulVersion::CUBLAS, std::nullopt);
+        reference_matmul(device_a_storage.const_view(), device_b_storage.const_view(), device_c_storage.view(), stream);
+        copy_matrix_async(device_c_storage.const_view(), host_reference_output, cudaMemcpyDeviceToHost, stream);
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+    }
+
+    const auto host_reference = make_matrix_view<const float>(host_reference_storage.get(), shape.m, shape.n);
+    const auto device_a = device_a_storage.const_view();
+    const auto device_b = device_b_storage.const_view();
+    auto device_c = device_c_storage.view();
+    const std::size_t device_c_pitch_bytes =
+        checked_product(device_c.stride(0), sizeof(float), "C row pitch exceeds size_t");
+    const std::size_t device_c_row_size_bytes =
+        checked_product(device_c.extent(1), sizeof(float), "C row size exceeds size_t");
+
+    std::vector<BenchmarkResult> results;
+    results.reserve(cases.size());
+    for (const auto& benchmark_case : cases) {
+        CUDA_CHECK(cudaMemset2DAsync(device_c.data_handle(), device_c_pitch_bytes, 0, device_c_row_size_bytes,
+                                     device_c.extent(0), stream));
+        results.push_back(run_benchmark(benchmark_case, config, host_reference, device_a, device_b, device_c, stream));
+    }
+
+    return results;
 }
 
 } // namespace cuda_matmul_lab
