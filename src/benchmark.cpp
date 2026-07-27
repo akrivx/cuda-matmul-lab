@@ -26,16 +26,6 @@ namespace {
     return name;
 }
 
-struct UniqueCudaEvent {
-    UniqueCudaEvent(const UniqueCudaEvent&) = delete;
-    UniqueCudaEvent& operator=(const UniqueCudaEvent&) = delete;
-    UniqueCudaEvent(UniqueCudaEvent&&) = delete;
-    UniqueCudaEvent& operator=(UniqueCudaEvent&&) = delete;
-    UniqueCudaEvent() { CUDA_CHECK(cudaEventCreate(&handle)); }
-    ~UniqueCudaEvent() { CUDA_CHECK(cudaEventDestroy(handle)); }
-    cudaEvent_t handle{};
-};
-
 [[nodiscard]] double compute_relative_error(double absolute_error, double reference_value) {
     if (reference_value == 0.0) {
         return (absolute_error == 0.0 ? 0.0 : std::numeric_limits<double>::infinity());
@@ -113,6 +103,55 @@ void validate_benchmark_inputs(const BenchmarkConfig& config, MatrixView<const f
     }
     return lhs * rhs;
 }
+
+struct UniqueCudaEvent {
+    UniqueCudaEvent(const UniqueCudaEvent&) = delete;
+    UniqueCudaEvent& operator=(const UniqueCudaEvent&) = delete;
+    UniqueCudaEvent(UniqueCudaEvent&&) = delete;
+    UniqueCudaEvent& operator=(UniqueCudaEvent&&) = delete;
+    UniqueCudaEvent() { CUDA_CHECK(cudaEventCreate(&handle)); }
+    ~UniqueCudaEvent() { CUDA_CHECK(cudaEventDestroy(handle)); }
+    cudaEvent_t handle{};
+};
+
+class UniqueCudaMatrixStorage {
+  public:
+    UniqueCudaMatrixStorage(const UniqueCudaMatrixStorage&) = delete;
+    UniqueCudaMatrixStorage& operator=(const UniqueCudaMatrixStorage&) = delete;
+    UniqueCudaMatrixStorage(UniqueCudaMatrixStorage&&) = delete;
+    UniqueCudaMatrixStorage& operator=(UniqueCudaMatrixStorage&&) = delete;
+
+    UniqueCudaMatrixStorage(std::size_t rows, std::size_t columns) : rows_{rows}, columns_{columns} {
+        const std::size_t row_size_bytes = checked_product(columns, sizeof(float), "matrix row size exceeds size_t");
+
+        void* data = nullptr;
+        CUDA_CHECK(cudaMallocPitch(&data, &pitch_bytes_, row_size_bytes, rows));
+
+        data_.reset(static_cast<float*>(data));
+
+        if (pitch_bytes_ % sizeof(float) != 0) {
+            throw std::runtime_error{"matrix row pitch must be divisible by sizeof(float)"};
+        }
+    }
+
+    [[nodiscard]] auto view() noexcept { return make_matrix_view(data_.get(), rows_, columns_, leading_dimension()); }
+
+    [[nodiscard]] auto const_view() const noexcept {
+        return make_matrix_view<const float>(data_.get(), rows_, columns_, leading_dimension());
+    }
+
+  private:
+    struct Deleter {
+        void operator()(float* ptr) const noexcept { CUDA_CHECK(cudaFree(ptr)); }
+    };
+
+    std::size_t leading_dimension() const noexcept { return pitch_bytes_ / sizeof(float); }
+
+    std::unique_ptr<float, Deleter> data_;
+    std::size_t rows_;
+    std::size_t columns_;
+    std::size_t pitch_bytes_{};
+};
 
 } // namespace
 
