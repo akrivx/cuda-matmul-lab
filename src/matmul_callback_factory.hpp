@@ -15,10 +15,10 @@ class MatmulCallbackFactory {
   public:
     // Validates `topology` against the selected implementation and active device.
     // Throws `std::invalid_argument` for an invalid version or topology.
-    [[nodiscard]] MatmulFn make(MatmulVersion version, const std::optional<LaunchTopology>& topology) const;
+    [[nodiscard]] MatmulFn make(MatmulVersion version, const std::optional<LaunchTopology>& topology);
 
   private:
-    CublasBackend cublas_backend_;
+    std::optional<CublasBackend> cublas_backend_;
 };
 
 } // namespace cuda_matmul_lab::detail

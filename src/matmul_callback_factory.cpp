@@ -7,7 +7,7 @@
 
 namespace cuda_matmul_lab::detail {
 
-MatmulFn MatmulCallbackFactory::make(MatmulVersion version, const std::optional<LaunchTopology>& topology) const {
+MatmulFn MatmulCallbackFactory::make(MatmulVersion version, const std::optional<LaunchTopology>& topology) {
     const auto resolved_topology = validate_and_resolve_topology(version, topology);
 
     switch (version) {
@@ -19,7 +19,10 @@ MatmulFn MatmulCallbackFactory::make(MatmulVersion version, const std::optional<
         };
 
     case MatmulVersion::CUBLAS:
-        return cublas_backend_.make_callback();
+        if (!cublas_backend_) {
+            cublas_backend_.emplace();
+        }
+        return cublas_backend_->make_callback();
 
     case MatmulVersion::COUNT:
         break;

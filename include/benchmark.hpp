@@ -62,7 +62,7 @@ struct BenchmarkConfig {
 
 // Owns the backend resources shared by a sequence of benchmark runs. A session is bound to the CUDA device active
 // during construction, is not safe for concurrent use, and must be destroyed while that device is current and before
-// it is reset. Destruction releases the shared cuBLAS handle and therefore synchronizes that device.
+// it is reset. If cuBLAS was used, destruction releases its shared handle and therefore synchronizes that device.
 class BenchmarkSession {
   public:
     BenchmarkSession();
@@ -71,9 +71,10 @@ class BenchmarkSession {
     BenchmarkSession(const BenchmarkSession&) = delete;
     BenchmarkSession& operator=(const BenchmarkSession&) = delete;
 
-    // Allocates inputs and outputs, generates deterministic random inputs, computes a cuBLAS reference, and benchmarks
-    // `cases` using `stream`. Returns only after all associated CUDA work and result transfers have completed.
-    // Allocation, initialization, transfers, and callback construction are outside the timed intervals.
+    // Allocates inputs and outputs, generates deterministic random inputs, computes a double-precision CPU reference,
+    // and benchmarks `cases` using `stream`. Returns only after all associated CUDA work and result transfers have
+    // completed. Allocation, initialization, transfers, reference computation, and callback construction are outside
+    // the timed intervals.
     //
     // `stream` must belong to the CUDA device to which this session is bound. Throws `std::invalid_argument` for
     // invalid configuration, shapes, or implementation settings, and `std::logic_error` if another device is active.

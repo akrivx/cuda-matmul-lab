@@ -56,7 +56,7 @@ void validate_benchmark_config(const BenchmarkConfig& config) {
     }
 }
 
-void validate_benchmark_matrices(MatrixView<const float> host_reference, MatrixView<float> device_result) {
+void validate_benchmark_matrices(MatrixView<const double> host_reference, MatrixView<float> device_result) {
     if (host_reference.extent(0) != device_result.extent(0) || host_reference.extent(1) != device_result.extent(1)) {
         throw std::invalid_argument{"host reference dimensions must match the device result"};
     }
@@ -69,13 +69,13 @@ void validate_benchmark_matrices(MatrixView<const float> host_reference, MatrixV
 }
 
 [[nodiscard]] CorrectnessResult evaluate_correctness(const BenchmarkConfig& config,
-                                                     MatrixView<const float> host_reference,
+                                                     MatrixView<const double> host_reference,
                                                      MatrixView<const float> host_result) {
     CorrectnessResult result;
     for (std::size_t row = 0; row < host_reference.extent(0); ++row) {
         for (std::size_t column = 0; column < host_reference.extent(1); ++column) {
             const double actual_value = static_cast<double>(host_result(row, column));
-            const double reference_value = static_cast<double>(host_reference(row, column));
+            const double reference_value = host_reference(row, column);
 
             if (!std::isfinite(actual_value) || !std::isfinite(reference_value)) {
                 result.max_abs_error = std::numeric_limits<double>::infinity();
@@ -118,6 +118,24 @@ void fill_random_matrix(MatrixView<float> matrix, std::mt19937_64& generator) {
     for (std::size_t row = 0; row < matrix.extent(0); ++row) {
         for (std::size_t column = 0; column < matrix.extent(1); ++column) {
             matrix(row, column) = distribution(generator);
+        }
+    }
+}
+
+// Computes `C = A * B` in increasing reduction-index order using double-precision accumulation.
+void compute_cpu_reference(MatrixView<const float> A, MatrixView<const float> B, MatrixView<double> C) {
+    for (std::size_t row = 0; row < C.extent(0); ++row) {
+        for (std::size_t column = 0; column < C.extent(1); ++column) {
+            C(row, column) = 0.0;
+        }
+    }
+
+    for (std::size_t row = 0; row < C.extent(0); ++row) {
+        for (std::size_t inner = 0; inner < A.extent(1); ++inner) {
+            const double a = static_cast<double>(A(row, inner));
+            for (std::size_t column = 0; column < C.extent(1); ++column) {
+                C(row, column) += a * static_cast<double>(B(inner, column));
+            }
         }
     }
 }
@@ -191,7 +209,7 @@ class PitchedDeviceMatrixStorage {
 
 // Measures one already-constructed callback and compares its final result with the host reference.
 [[nodiscard]] BenchmarkResult run_case(const BenchmarkCase& benchmark_case, const BenchmarkConfig& config,
-                                       const detail::MatmulFn& matmul, MatrixView<const float> host_reference,
+                                       const detail::MatmulFn& matmul, MatrixView<const double> host_reference,
                                        MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                                        cudaStream_t stream) {
     for (std::size_t i = 0; i < config.warmup_iterations; ++i) {
@@ -274,7 +292,6 @@ struct BenchmarkSession::Impl {
 
     int device{get_current_cuda_device()};
     detail::MatmulCallbackFactory callback_factory;
-    detail::MatmulFn reference_matmul{callback_factory.make(MatmulVersion::CUBLAS, std::nullopt)};
 };
 
 BenchmarkSession::BenchmarkSession() : impl_{std::make_unique<Impl>()} {}
@@ -297,31 +314,23 @@ std::vector<BenchmarkResult> BenchmarkSession::run(MatmulShape shape, std::span<
 
     auto host_a_storage = std::make_unique_for_overwrite<float[]>(a_element_count);
     auto host_b_storage = std::make_unique_for_overwrite<float[]>(b_element_count);
-    auto host_reference_storage = std::make_unique_for_overwrite<float[]>(c_element_count);
+    auto host_reference_storage = std::make_unique_for_overwrite<double[]>(c_element_count);
 
     PitchedDeviceMatrixStorage device_a_storage{shape.m, shape.k};
     PitchedDeviceMatrixStorage device_b_storage{shape.k, shape.n};
     PitchedDeviceMatrixStorage device_c_storage{shape.m, shape.n};
 
-    {
-        std::mt19937_64 generator{config.random_seed};
-        auto host_a = make_matrix_view(host_a_storage.get(), shape.m, shape.k);
-        auto host_b = make_matrix_view(host_b_storage.get(), shape.k, shape.n);
-        fill_random_matrix(host_a, generator);
-        fill_random_matrix(host_b, generator);
-        copy_matrix_async(host_a, device_a_storage.view(), cudaMemcpyHostToDevice, stream);
-        copy_matrix_async(host_b, device_b_storage.view(), cudaMemcpyHostToDevice, stream);
-    }
+    std::mt19937_64 generator{config.random_seed};
+    auto host_a = make_matrix_view(host_a_storage.get(), shape.m, shape.k);
+    auto host_b = make_matrix_view(host_b_storage.get(), shape.k, shape.n);
+    auto host_reference_output = make_matrix_view(host_reference_storage.get(), shape.m, shape.n);
+    fill_random_matrix(host_a, generator);
+    fill_random_matrix(host_b, generator);
+    compute_cpu_reference(host_a, host_b, host_reference_output);
+    copy_matrix_async(host_a, device_a_storage.view(), cudaMemcpyHostToDevice, stream);
+    copy_matrix_async(host_b, device_b_storage.view(), cudaMemcpyHostToDevice, stream);
 
-    {
-        auto host_reference_output = make_matrix_view(host_reference_storage.get(), shape.m, shape.n);
-        impl_->reference_matmul(device_a_storage.const_view(), device_b_storage.const_view(), device_c_storage.view(),
-                                stream);
-        copy_matrix_async(device_c_storage.const_view(), host_reference_output, cudaMemcpyDeviceToHost, stream);
-        CUDA_CHECK(cudaStreamSynchronize(stream));
-    }
-
-    const auto host_reference = make_matrix_view<const float>(host_reference_storage.get(), shape.m, shape.n);
+    const auto host_reference = make_matrix_view<const double>(host_reference_storage.get(), shape.m, shape.n);
     const auto device_a = device_a_storage.const_view();
     const auto device_b = device_b_storage.const_view();
     auto device_c = device_c_storage.view();
