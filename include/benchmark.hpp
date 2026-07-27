@@ -3,12 +3,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <cuda_runtime_api.h>
+
+#include "launch_topology.hpp"
 #include "matmul.hpp"
 
 namespace cuda_matmul_lab {
@@ -56,23 +60,30 @@ struct BenchmarkConfig {
     std::uint64_t random_seed = 0xC0FFEE;
 };
 
-// Enqueues warm-up and timed invocations of `benchmark_case` on `stream`, measures each timed invocation with CUDA
-// events on that stream, and validates the final output against `host_reference`. Callback construction is not timed.
-//
-// `A` and `B` refer to device-accessible input matrices, `C` refers to a device-accessible output matrix, and
-// `host_reference` refers to host-accessible memory. Their extents must describe `A[M,K] * B[K,N] = C[M,N]`.
-//
-// `gflops` is the conventional `2 * M * N * K` operation count divided by `median_ms`.
-// Throws `std::invalid_argument` for invalid configuration, matrix views, or implementation settings.
-[[nodiscard]] BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const BenchmarkConfig& config,
-                                            MatrixView<const float> host_reference, MatrixView<const float> A,
-                                            MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream);
+// Owns the backend resources shared by a sequence of benchmark runs. A session is bound to the CUDA device active
+// during construction, is not safe for concurrent use, and must be destroyed while that device is current and before
+// it is reset. Destruction releases the shared cuBLAS handle and therefore synchronizes that device.
+class BenchmarkSession {
+  public:
+    BenchmarkSession();
+    ~BenchmarkSession();
 
-// Allocates inputs and outputs, generates deterministic random inputs, computes a reference, and benchmarks `cases`
-// using `stream`. Returns only after all associated CUDA work and result transfers have completed. Allocation,
-// initialization, transfers, and callback construction are outside the timed intervals.
-[[nodiscard]] std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<const BenchmarkCase> cases,
-                                                              const BenchmarkConfig& config, cudaStream_t stream);
+    BenchmarkSession(const BenchmarkSession&) = delete;
+    BenchmarkSession& operator=(const BenchmarkSession&) = delete;
+
+    // Allocates inputs and outputs, generates deterministic random inputs, computes a cuBLAS reference, and benchmarks
+    // `cases` using `stream`. Returns only after all associated CUDA work and result transfers have completed.
+    // Allocation, initialization, transfers, and callback construction are outside the timed intervals.
+    //
+    // `stream` must belong to the CUDA device to which this session is bound. Throws `std::invalid_argument` for
+    // invalid configuration, shapes, or implementation settings, and `std::logic_error` if another device is active.
+    [[nodiscard]] std::vector<BenchmarkResult> run(MatmulShape shape, std::span<const BenchmarkCase> cases,
+                                                   const BenchmarkConfig& config, cudaStream_t stream);
+
+  private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
 
 // Writes results as a Markdown table, adding block, tile, and grid-cap columns when topology information is available.
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,

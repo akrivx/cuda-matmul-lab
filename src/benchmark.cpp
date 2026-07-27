@@ -1,7 +1,10 @@
 #include "benchmark.hpp"
 
 #include "cuda_check.hpp"
+#include "matmul_callback.hpp"
+#include "matmul_callback_factory.hpp"
 #include "matmul_validation.hpp"
+#include "matrix_view.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -41,8 +44,7 @@ struct CorrectnessResult {
     bool passed = true;
 };
 
-void validate_benchmark_inputs(const BenchmarkConfig& config, MatrixView<const float> host_reference,
-                               MatrixView<float> device_result) {
+void validate_benchmark_config(const BenchmarkConfig& config) {
     if (config.timed_iterations == 0) {
         throw std::invalid_argument{"timed_iterations must be positive"};
     }
@@ -52,6 +54,9 @@ void validate_benchmark_inputs(const BenchmarkConfig& config, MatrixView<const f
     if (!std::isfinite(config.relative_tolerance) || config.relative_tolerance < 0.0) {
         throw std::invalid_argument{"relative_tolerance must be finite and non-negative"};
     }
+}
+
+void validate_benchmark_matrices(MatrixView<const float> host_reference, MatrixView<float> device_result) {
     if (host_reference.extent(0) != device_result.extent(0) || host_reference.extent(1) != device_result.extent(1)) {
         throw std::invalid_argument{"host reference dimensions must match the device result"};
     }
@@ -117,39 +122,36 @@ void fill_random_matrix(MatrixView<float> matrix, std::mt19937_64& generator) {
     }
 }
 
-void copy_matrix_async(MatrixView<const float> src, MatrixView<float> dst, cudaMemcpyKind kind, cudaStream_t stream) {
-    if (src.extent(0) != dst.extent(0) || src.extent(1) != dst.extent(1)) {
-        throw std::invalid_argument{"src and dst matrix dimensions must match"};
+void copy_matrix_async(MatrixView<const float> source, MatrixView<float> destination, cudaMemcpyKind kind,
+                       cudaStream_t stream) {
+    if (source.extent(0) != destination.extent(0) || source.extent(1) != destination.extent(1)) {
+        throw std::invalid_argument{"source and destination matrix dimensions must match"};
     }
 
-    const std::size_t src_pitch_bytes =
-        checked_product(src.stride(0), sizeof(float), "src matrix row pitch exceeds size_t");
-    const std::size_t dst_pitch_bytes =
-        checked_product(dst.stride(0), sizeof(float), "dst matrix row pitch exceeds size_t");
-    const std::size_t row_size_bytes = checked_product(src.extent(1), sizeof(float), "matrix row size exceeds size_t");
+    const std::size_t source_pitch_bytes =
+        checked_product(source.stride(0), sizeof(float), "source matrix row pitch exceeds size_t");
+    const std::size_t destination_pitch_bytes =
+        checked_product(destination.stride(0), sizeof(float), "destination matrix row pitch exceeds size_t");
+    const std::size_t row_size_bytes =
+        checked_product(source.extent(1), sizeof(float), "matrix row size exceeds size_t");
 
-    CUDA_CHECK(cudaMemcpy2DAsync(dst.data_handle(), dst_pitch_bytes, src.data_handle(), src_pitch_bytes, row_size_bytes,
-                                 src.extent(0), kind, stream));
+    CUDA_CHECK(cudaMemcpy2DAsync(destination.data_handle(), destination_pitch_bytes, source.data_handle(),
+                                 source_pitch_bytes, row_size_bytes, source.extent(0), kind, stream));
 }
 
+// RAII owner for one CUDA timing event.
 struct CudaEvent {
     CudaEvent(const CudaEvent&) = delete;
     CudaEvent& operator=(const CudaEvent&) = delete;
-    CudaEvent(CudaEvent&&) = delete;
-    CudaEvent& operator=(CudaEvent&&) = delete;
     CudaEvent() { CUDA_CHECK(cudaEventCreate(&handle)); }
     ~CudaEvent() { CUDA_CHECK(cudaEventDestroy(handle)); }
     cudaEvent_t handle{};
 };
 
-class DeviceMatrixStorage {
+// Owns a pitched device allocation for one float matrix. Views remain valid until the storage is destroyed.
+class PitchedDeviceMatrixStorage {
   public:
-    DeviceMatrixStorage(const DeviceMatrixStorage&) = delete;
-    DeviceMatrixStorage& operator=(const DeviceMatrixStorage&) = delete;
-    DeviceMatrixStorage(DeviceMatrixStorage&&) = delete;
-    DeviceMatrixStorage& operator=(DeviceMatrixStorage&&) = delete;
-
-    DeviceMatrixStorage(std::size_t rows, std::size_t columns)
+    PitchedDeviceMatrixStorage(std::size_t rows, std::size_t columns)
         : rows_{rows}, columns_{columns},
           row_size_bytes_{checked_product(columns, sizeof(float), "matrix row size exceeds size_t")} {
         void* data = nullptr;
@@ -168,6 +170,7 @@ class DeviceMatrixStorage {
         return make_matrix_view<const float>(data_.get(), rows_, columns_, leading_dimension());
     }
 
+    // Enqueues zeroing of the logical matrix elements on `stream`; row padding is left unchanged.
     void zero_async(cudaStream_t stream) noexcept {
         CUDA_CHECK(cudaMemset2DAsync(data_.get(), pitch_bytes_, 0, row_size_bytes_, rows_, stream));
     }
@@ -186,14 +189,11 @@ class DeviceMatrixStorage {
     std::size_t pitch_bytes_{};
 };
 
-} // namespace
-
-BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const BenchmarkConfig& config,
-                              MatrixView<const float> host_reference, MatrixView<const float> A,
-                              MatrixView<const float> B, MatrixView<float> C, cudaStream_t stream) {
-    validate_benchmark_inputs(config, host_reference, C);
-    MatmulFn matmul = get_matmul_callback(benchmark_case.version, benchmark_case.topology);
-
+// Measures one already-constructed callback and compares its final result with the host reference.
+[[nodiscard]] BenchmarkResult run_case(const BenchmarkCase& benchmark_case, const BenchmarkConfig& config,
+                                       const detail::MatmulFn& matmul, MatrixView<const float> host_reference,
+                                       MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                                       cudaStream_t stream) {
     for (std::size_t i = 0; i < config.warmup_iterations; ++i) {
         matmul(A, B, C, stream);
     }
@@ -257,9 +257,39 @@ BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const Benchma
     };
 }
 
-std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<const BenchmarkCase> cases,
-                                                const BenchmarkConfig& config, cudaStream_t stream) {
+[[nodiscard]] int get_current_cuda_device() {
+    int device = 0;
+    CUDA_CHECK(cudaGetDevice(&device));
+    return device;
+}
+
+} // namespace
+
+struct BenchmarkSession::Impl {
+    void validate_current_device() const {
+        if (get_current_cuda_device() != device) {
+            throw std::logic_error{"another CUDA device is active; BenchmarkSession is bound to its creation device"};
+        }
+    }
+
+    int device{get_current_cuda_device()};
+    detail::MatmulCallbackFactory callback_factory;
+    detail::MatmulFn reference_matmul{callback_factory.make(MatmulVersion::CUBLAS, std::nullopt)};
+};
+
+BenchmarkSession::BenchmarkSession() : impl_{std::make_unique<Impl>()} {}
+
+BenchmarkSession::~BenchmarkSession() = default;
+
+std::vector<BenchmarkResult> BenchmarkSession::run(MatmulShape shape, std::span<const BenchmarkCase> cases,
+                                                   const BenchmarkConfig& config, cudaStream_t stream) {
+    impl_->validate_current_device();
+    validate_benchmark_config(config);
     detail::validate_matmul_dimensions(shape.m, shape.n, shape.k);
+
+    if (cases.empty()) {
+        return {};
+    }
 
     const std::size_t a_element_count = checked_product(shape.m, shape.k, "A element count exceeds size_t");
     const std::size_t b_element_count = checked_product(shape.k, shape.n, "B element count exceeds size_t");
@@ -269,9 +299,9 @@ std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<con
     auto host_b_storage = std::make_unique_for_overwrite<float[]>(b_element_count);
     auto host_reference_storage = std::make_unique_for_overwrite<float[]>(c_element_count);
 
-    DeviceMatrixStorage device_a_storage{shape.m, shape.k};
-    DeviceMatrixStorage device_b_storage{shape.k, shape.n};
-    DeviceMatrixStorage device_c_storage{shape.m, shape.n};
+    PitchedDeviceMatrixStorage device_a_storage{shape.m, shape.k};
+    PitchedDeviceMatrixStorage device_b_storage{shape.k, shape.n};
+    PitchedDeviceMatrixStorage device_c_storage{shape.m, shape.n};
 
     {
         std::mt19937_64 generator{config.random_seed};
@@ -285,8 +315,8 @@ std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<con
 
     {
         auto host_reference_output = make_matrix_view(host_reference_storage.get(), shape.m, shape.n);
-        auto reference_matmul = get_matmul_callback(MatmulVersion::CUBLAS, std::nullopt);
-        reference_matmul(device_a_storage.const_view(), device_b_storage.const_view(), device_c_storage.view(), stream);
+        impl_->reference_matmul(device_a_storage.const_view(), device_b_storage.const_view(), device_c_storage.view(),
+                                stream);
         copy_matrix_async(device_c_storage.const_view(), host_reference_output, cudaMemcpyDeviceToHost, stream);
         CUDA_CHECK(cudaStreamSynchronize(stream));
     }
@@ -295,12 +325,15 @@ std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<con
     const auto device_a = device_a_storage.const_view();
     const auto device_b = device_b_storage.const_view();
     auto device_c = device_c_storage.view();
+    validate_benchmark_matrices(host_reference, device_c);
 
     std::vector<BenchmarkResult> results;
     results.reserve(cases.size());
     for (const auto& benchmark_case : cases) {
+        auto matmul = impl_->callback_factory.make(benchmark_case.version, benchmark_case.topology);
         device_c_storage.zero_async(stream);
-        results.push_back(run_benchmark(benchmark_case, config, host_reference, device_a, device_b, device_c, stream));
+        results.push_back(
+            run_case(benchmark_case, config, matmul, host_reference, device_a, device_b, device_c, stream));
     }
 
     return results;

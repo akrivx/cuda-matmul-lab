@@ -35,11 +35,14 @@ add_library(
     STATIC
         src/backends/cublas.cpp
         src/backends/cublas.hpp
+        src/backends/cublas_check.hpp
         src/benchmark.cpp
+        src/cuda_check.hpp
         src/launch_topology.cpp
         src/matmul.cpp
-        src/matmul_factories.cpp
-        src/matmul_factories.hpp
+        src/matmul_callback.hpp
+        src/matmul_callback_factory.cpp
+        src/matmul_callback_factory.hpp
         src/matmul_validation.cpp
         src/matmul_validation.hpp
         src/resolved_launch_topology.hpp
@@ -62,7 +65,6 @@ target_sources(
         BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
         FILES
             include/benchmark.hpp
-            include/cuda_check.hpp
             include/launch_topology.hpp
             include/matrix_view.hpp
             include/matmul.hpp
@@ -87,5 +89,6 @@ target_link_libraries(
     cuda_matmul_lab
     PUBLIC
         CUDA::cudart
+    PRIVATE
         CUDA::cublas
 )
