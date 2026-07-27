@@ -132,28 +132,28 @@ void copy_matrix_async(MatrixView<const float> src, MatrixView<float> dst, cudaM
                                  src.extent(0), kind, stream));
 }
 
-struct UniqueCudaEvent {
-    UniqueCudaEvent(const UniqueCudaEvent&) = delete;
-    UniqueCudaEvent& operator=(const UniqueCudaEvent&) = delete;
-    UniqueCudaEvent(UniqueCudaEvent&&) = delete;
-    UniqueCudaEvent& operator=(UniqueCudaEvent&&) = delete;
-    UniqueCudaEvent() { CUDA_CHECK(cudaEventCreate(&handle)); }
-    ~UniqueCudaEvent() { CUDA_CHECK(cudaEventDestroy(handle)); }
+struct CudaEvent {
+    CudaEvent(const CudaEvent&) = delete;
+    CudaEvent& operator=(const CudaEvent&) = delete;
+    CudaEvent(CudaEvent&&) = delete;
+    CudaEvent& operator=(CudaEvent&&) = delete;
+    CudaEvent() { CUDA_CHECK(cudaEventCreate(&handle)); }
+    ~CudaEvent() { CUDA_CHECK(cudaEventDestroy(handle)); }
     cudaEvent_t handle{};
 };
 
-class UniqueCudaMatrixStorage {
+class DeviceMatrixStorage {
   public:
-    UniqueCudaMatrixStorage(const UniqueCudaMatrixStorage&) = delete;
-    UniqueCudaMatrixStorage& operator=(const UniqueCudaMatrixStorage&) = delete;
-    UniqueCudaMatrixStorage(UniqueCudaMatrixStorage&&) = delete;
-    UniqueCudaMatrixStorage& operator=(UniqueCudaMatrixStorage&&) = delete;
+    DeviceMatrixStorage(const DeviceMatrixStorage&) = delete;
+    DeviceMatrixStorage& operator=(const DeviceMatrixStorage&) = delete;
+    DeviceMatrixStorage(DeviceMatrixStorage&&) = delete;
+    DeviceMatrixStorage& operator=(DeviceMatrixStorage&&) = delete;
 
-    UniqueCudaMatrixStorage(std::size_t rows, std::size_t columns) : rows_{rows}, columns_{columns} {
-        const std::size_t row_size_bytes = checked_product(columns, sizeof(float), "matrix row size exceeds size_t");
-
+    DeviceMatrixStorage(std::size_t rows, std::size_t columns)
+        : rows_{rows}, columns_{columns},
+          row_size_bytes_{checked_product(columns, sizeof(float), "matrix row size exceeds size_t")} {
         void* data = nullptr;
-        CUDA_CHECK(cudaMallocPitch(&data, &pitch_bytes_, row_size_bytes, rows));
+        CUDA_CHECK(cudaMallocPitch(&data, &pitch_bytes_, row_size_bytes_, rows));
 
         data_.reset(static_cast<float*>(data));
 
@@ -168,6 +168,10 @@ class UniqueCudaMatrixStorage {
         return make_matrix_view<const float>(data_.get(), rows_, columns_, leading_dimension());
     }
 
+    void zero_async(cudaStream_t stream) noexcept {
+        CUDA_CHECK(cudaMemset2DAsync(data_.get(), pitch_bytes_, 0, row_size_bytes_, rows_, stream));
+    }
+
   private:
     struct Deleter {
         void operator()(float* ptr) const noexcept { CUDA_CHECK(cudaFree(ptr)); }
@@ -178,6 +182,7 @@ class UniqueCudaMatrixStorage {
     std::unique_ptr<float, Deleter> data_;
     std::size_t rows_;
     std::size_t columns_;
+    std::size_t row_size_bytes_;
     std::size_t pitch_bytes_{};
 };
 
@@ -195,8 +200,8 @@ BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const Benchma
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    UniqueCudaEvent start_event;
-    UniqueCudaEvent stop_event;
+    CudaEvent start_event;
+    CudaEvent stop_event;
 
     double total_ms = 0.0;
     std::vector<double> iteration_times_ms;
@@ -264,9 +269,9 @@ std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<con
     auto host_b_storage = std::make_unique_for_overwrite<float[]>(b_element_count);
     auto host_reference_storage = std::make_unique_for_overwrite<float[]>(c_element_count);
 
-    UniqueCudaMatrixStorage device_a_storage{shape.m, shape.k};
-    UniqueCudaMatrixStorage device_b_storage{shape.k, shape.n};
-    UniqueCudaMatrixStorage device_c_storage{shape.m, shape.n};
+    DeviceMatrixStorage device_a_storage{shape.m, shape.k};
+    DeviceMatrixStorage device_b_storage{shape.k, shape.n};
+    DeviceMatrixStorage device_c_storage{shape.m, shape.n};
 
     {
         std::mt19937_64 generator{config.random_seed};
@@ -290,16 +295,11 @@ std::vector<BenchmarkResult> run_all_benchmarks(MatmulShape shape, std::span<con
     const auto device_a = device_a_storage.const_view();
     const auto device_b = device_b_storage.const_view();
     auto device_c = device_c_storage.view();
-    const std::size_t device_c_pitch_bytes =
-        checked_product(device_c.stride(0), sizeof(float), "C row pitch exceeds size_t");
-    const std::size_t device_c_row_size_bytes =
-        checked_product(device_c.extent(1), sizeof(float), "C row size exceeds size_t");
 
     std::vector<BenchmarkResult> results;
     results.reserve(cases.size());
     for (const auto& benchmark_case : cases) {
-        CUDA_CHECK(cudaMemset2DAsync(device_c.data_handle(), device_c_pitch_bytes, 0, device_c_row_size_bytes,
-                                     device_c.extent(0), stream));
+        device_c_storage.zero_async(stream);
         results.push_back(run_benchmark(benchmark_case, config, host_reference, device_a, device_b, device_c, stream));
     }
 
