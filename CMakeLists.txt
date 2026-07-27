@@ -45,6 +45,7 @@ add_library(
         src/matmul_callback_factory.hpp
         src/matmul_validation.cpp
         src/matmul_validation.hpp
+        src/matrix_view.hpp
         src/resolved_launch_topology.hpp
         src/kernels/matmul_kernel_launchers.hpp
         src/kernels/naive.cu
@@ -66,7 +67,6 @@ target_sources(
         FILES
             include/benchmark.hpp
             include/launch_topology.hpp
-            include/matrix_view.hpp
             include/matmul.hpp
 )
 

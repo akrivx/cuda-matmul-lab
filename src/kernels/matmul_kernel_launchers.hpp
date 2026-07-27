@@ -1,6 +1,8 @@
 #pragma once
 
-#include "matmul.hpp"
+#include <cuda_runtime_api.h>
+
+#include "matrix_view.hpp"
 #include "resolved_launch_topology.hpp"
 
 namespace cuda_matmul_lab::detail {
