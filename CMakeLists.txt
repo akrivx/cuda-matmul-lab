@@ -35,6 +35,7 @@ add_library(
     STATIC
         src/backends/cublas.cpp
         src/backends/cublas.hpp
+        src/launch_topology.cpp
         src/matmul.cpp
         src/matmul_factories.cpp
         src/matmul_factories.hpp
