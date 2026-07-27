@@ -99,8 +99,7 @@ void validate_benchmark_inputs(const BenchmarkConfig& config, MatrixView<const f
     return result;
 }
 
-[[nodiscard]] double compute_median(std::span<double> values) {
-    std::sort(values.begin(), values.end());
+[[nodiscard]] double compute_median_of_sorted(std::span<const double> values) {
     const std::size_t middle = values.size() / 2;
     if (values.size() % 2 != 0) {
         return values[middle];
@@ -149,8 +148,10 @@ BenchmarkResult run_benchmark(const BenchmarkCase& benchmark_case, const Benchma
         iteration_times_ms.push_back(static_cast<double>(elapsed_ms));
     }
 
+    std::sort(iteration_times_ms.begin(), iteration_times_ms.end());
+
     const double mean_ms = total_ms / static_cast<double>(config.timed_iterations);
-    const double median_ms = compute_median(iteration_times_ms);
+    const double median_ms = compute_median_of_sorted(iteration_times_ms);
     const double min_ms = iteration_times_ms.front();
 
     const std::size_t m = A.extent(0);
