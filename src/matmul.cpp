@@ -8,7 +8,7 @@
 
 namespace cuda_matmul_lab {
 
-[[nodiscard]] std::string_view get_matmul_name(MatmulVersion version) {
+std::string_view get_matmul_name(MatmulVersion version) {
     switch (version) {
     case MatmulVersion::NAIVE:
         return "naive";
@@ -21,7 +21,7 @@ namespace cuda_matmul_lab {
     throw std::invalid_argument{"unknown matmul version"};
 }
 
-[[nodiscard]] MatmulFn get_matmul_callback(MatmulVersion version, const std::optional<LaunchTopology>& topology) {
+MatmulFn get_matmul_callback(MatmulVersion version, const std::optional<LaunchTopology>& topology) {
     auto resolved_topology = detail::validate_and_resolve_topology(version, topology);
 
     switch (version) {

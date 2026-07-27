@@ -104,8 +104,8 @@ void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B
     }
 }
 
-[[nodiscard]] std::optional<ResolvedLaunchTopology>
-validate_and_resolve_topology(MatmulVersion version, const std::optional<LaunchTopology>& topology) {
+std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersion version,
+                                                                    const std::optional<LaunchTopology>& topology) {
     const auto policy = get_topology_policy(version);
 
     if (!satisfies(policy.topology, topology.has_value())) {
