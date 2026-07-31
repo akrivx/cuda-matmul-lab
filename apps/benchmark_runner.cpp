@@ -24,20 +24,19 @@ using cuda_matmul_lab::LaunchTopology;
 using cuda_matmul_lab::MatmulShape;
 using cuda_matmul_lab::MatmulVersion;
 
-constexpr std::string_view usage =
-    "Usage: benchmark_runner [options]\n"
-    "  --m <n>            Rows of A and C (default 1024)\n"
-    "  --n <n>            Columns of B and C (default 1024)\n"
-    "  --k <n>            Columns of A / rows of B (default 1024)\n"
-    "  --warmup <n>       Warmup iterations per case (default 5)\n"
-    "  --iterations <n>   Timed iterations per case (default 5)\n"
-    "  --seed <n>         Random seed for input generation (default 0xC0FFEE)\n"
-    "  --abs-tol <f>      Absolute error tolerance (default 1e-4)\n"
-    "  --rel-tol <f>      Relative error tolerance (default 1e-3)\n"
-    "  --device <n>       CUDA device index to run on (default: active device)\n"
-    "  --title <s>        Report title (default \"cuda-matmul-lab benchmark\")\n"
-    "  --output <path>    Write the report to a file instead of stdout\n"
-    "  --help             Show this message\n";
+constexpr std::string_view usage = "Usage: benchmark_runner [options]\n"
+                                   "  --m <n>            Rows of A and C (default 1024)\n"
+                                   "  --n <n>            Columns of B and C (default 1024)\n"
+                                   "  --k <n>            Columns of A / rows of B (default 1024)\n"
+                                   "  --warmup <n>       Warmup iterations per case (default 5)\n"
+                                   "  --iterations <n>   Timed iterations per case (default 5)\n"
+                                   "  --seed <n>         Random seed for input generation (default 0xC0FFEE)\n"
+                                   "  --abs-tol <f>      Absolute error tolerance (default 1e-4)\n"
+                                   "  --rel-tol <f>      Relative error tolerance (default 1e-3)\n"
+                                   "  --device <n>       CUDA device index to run on (default: active device)\n"
+                                   "  --title <s>        Report title (default \"cuda-matmul-lab benchmark\")\n"
+                                   "  --output <path>    Write the report to a file instead of stdout\n"
+                                   "  --help             Show this message\n";
 
 struct CliOptions {
     MatmulShape shape;
