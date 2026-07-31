@@ -92,3 +92,7 @@ target_link_libraries(
     PRIVATE
         CUDA::cublas
 )
+
+# Drives BenchmarkSession to run and report on every implemented kernel stage.
+add_executable(benchmark_runner apps/benchmark_runner.cpp)
+target_link_libraries(benchmark_runner PRIVATE cuda_matmul_lab::cuda_matmul_lab)
