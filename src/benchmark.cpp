@@ -8,8 +8,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <memory>
+#include <ostream>
 #include <random>
 #include <span>
 #include <stdexcept>
@@ -346,6 +348,46 @@ std::vector<BenchmarkResult> BenchmarkSession::run(MatmulShape shape, std::span<
     }
 
     return results;
+}
+
+void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
+                  std::span<const BenchmarkResult> results) {
+    const bool has_topology =
+        std::any_of(results.begin(), results.end(), [](const BenchmarkResult& result) { return result.topology.has_value(); });
+
+    out << std::format("## {}\n\n", stage_title);
+    out << std::format("M={}, N={}, K={}, warmup={}, timed={}, seed=0x{:X}\n\n", shape.m, shape.n, shape.k,
+                       config.warmup_iterations, config.timed_iterations, config.random_seed);
+
+    out << "| Name | Mean (ms) | Median (ms) | Min (ms) | GFLOP/s | Max Abs Err | Max Rel Err | Correct |";
+    if (has_topology) {
+        out << " Block | Tile | Grid Cap |";
+    }
+    out << "\n|---|---|---|---|---|---|---|---|";
+    if (has_topology) {
+        out << "---|---|---|";
+    }
+    out << "\n";
+
+    for (const auto& result : results) {
+        out << std::format("| {} | {:.4f} | {:.4f} | {:.4f} | {:.2f} | {:.3e} | {:.3e} | {} |", result.name,
+                           result.mean_ms, result.median_ms, result.min_ms, result.gflops, result.max_abs_error,
+                           result.max_rel_error, result.correctness_passed ? "yes" : "no");
+
+        if (has_topology) {
+            if (result.topology) {
+                const auto& tile = result.topology->tile;
+                const auto& grid_cap = result.topology->grid_cap;
+                out << std::format(
+                    " {}x{}x{} | {} | {} |", result.topology->block.x, result.topology->block.y, result.topology->block.z,
+                    tile ? std::format("{}x{}x{}", tile->m, tile->n, tile->k) : "-",
+                    grid_cap ? std::format("{}x{}x{}", grid_cap->x, grid_cap->y, grid_cap->z) : "-");
+            } else {
+                out << " - | - | - |";
+            }
+        }
+        out << "\n";
+    }
 }
 
 } // namespace cuda_matmul_lab
