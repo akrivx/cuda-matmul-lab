@@ -352,42 +352,77 @@ std::vector<BenchmarkResult> BenchmarkSession::run(MatmulShape shape, std::span<
 
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
                   std::span<const BenchmarkResult> results) {
-    const bool has_topology =
-        std::any_of(results.begin(), results.end(), [](const BenchmarkResult& result) { return result.topology.has_value(); });
+    const bool has_topology = std::any_of(results.begin(), results.end(),
+                                          [](const BenchmarkResult& result) { return result.topology.has_value(); });
 
     out << std::format("## {}\n\n", stage_title);
     out << std::format("M={}, N={}, K={}, warmup={}, timed={}, seed=0x{:X}\n\n", shape.m, shape.n, shape.k,
                        config.warmup_iterations, config.timed_iterations, config.random_seed);
 
-    out << "| Name | Mean (ms) | Median (ms) | Min (ms) | GFLOP/s | Max Abs Err | Max Rel Err | Correct |";
+    std::vector<std::string> headers{"Name",    "Mean (ms)",   "Median (ms)", "Min (ms)",
+                                     "GFLOP/s", "Max Abs Err", "Max Rel Err", "Correct"};
     if (has_topology) {
-        out << " Block | Tile | Grid Cap |";
+        headers.insert(headers.end(), {"Block", "Tile", "Grid Cap"});
     }
-    out << "\n|---|---|---|---|---|---|---|---|";
-    if (has_topology) {
-        out << "---|---|---|";
-    }
-    out << "\n";
 
+    std::vector<std::vector<std::string>> rows;
+    rows.reserve(results.size());
     for (const auto& result : results) {
-        out << std::format("| {} | {:.4f} | {:.4f} | {:.4f} | {:.2f} | {:.3e} | {:.3e} | {} |", result.name,
-                           result.mean_ms, result.median_ms, result.min_ms, result.gflops, result.max_abs_error,
-                           result.max_rel_error, result.correctness_passed ? "yes" : "no");
+        std::vector<std::string> row{
+            result.name,
+            std::format("{:.4f}", result.mean_ms),
+            std::format("{:.4f}", result.median_ms),
+            std::format("{:.4f}", result.min_ms),
+            std::format("{:.2f}", result.gflops),
+            std::format("{:.3e}", result.max_abs_error),
+            std::format("{:.3e}", result.max_rel_error),
+            result.correctness_passed ? "yes" : "no",
+        };
 
         if (has_topology) {
             if (result.topology) {
                 const auto& tile = result.topology->tile;
                 const auto& grid_cap = result.topology->grid_cap;
-                out << std::format(
-                    " {}x{}x{} | {} | {} |", result.topology->block.x, result.topology->block.y, result.topology->block.z,
-                    tile ? std::format("{}x{}x{}", tile->m, tile->n, tile->k) : "-",
-                    grid_cap ? std::format("{}x{}x{}", grid_cap->x, grid_cap->y, grid_cap->z) : "-");
+                row.push_back(std::format("{}x{}x{}", result.topology->block.x, result.topology->block.y,
+                                          result.topology->block.z));
+                row.push_back(tile ? std::format("{}x{}x{}", tile->m, tile->n, tile->k) : "-");
+                row.push_back(grid_cap ? std::format("{}x{}x{}", grid_cap->x, grid_cap->y, grid_cap->z) : "-");
             } else {
-                out << " - | - | - |";
+                row.insert(row.end(), {"-", "-", "-"});
             }
         }
-        out << "\n";
+
+        rows.push_back(std::move(row));
     }
+
+    std::vector<std::size_t> column_widths(headers.size());
+    for (std::size_t column = 0; column < headers.size(); ++column) {
+        column_widths[column] = headers[column].size();
+        for (const auto& row : rows) {
+            column_widths[column] = std::max(column_widths[column], row[column].size());
+        }
+    }
+
+    const auto write_row = [&](const std::vector<std::string>& cells) {
+        out << '|';
+        for (std::size_t column = 0; column < cells.size(); ++column) {
+            out << ' ' << std::format("{:<{}}", cells[column], column_widths[column]) << " |";
+        }
+        out << '\n';
+    };
+
+    write_row(headers);
+
+    out << '|';
+    for (std::size_t width : column_widths) {
+        out << ' ' << std::string(width, '-') << " |";
+    }
+    out << '\n';
+
+    for (const auto& row : rows) {
+        write_row(row);
+    }
+    out << '\n';
 }
 
 } // namespace cuda_matmul_lab
