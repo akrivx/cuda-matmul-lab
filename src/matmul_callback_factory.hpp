@@ -10,6 +10,8 @@
 namespace cuda_matmul_lab::detail {
 
 // Owns backend resources and creates validated callbacks for every selectable matrix-multiplication implementation.
+// Owns backend resources and creates validated callbacks for every selectable matrix-multiplication implementation.
+// Returned callbacks do not depend on the factory's lifetime and may safely outlive it.
 // Callbacks created by one factory are intended for sequential use on the CUDA device active at construction.
 class MatmulCallbackFactory {
   public:

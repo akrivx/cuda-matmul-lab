@@ -24,7 +24,7 @@ MatmulFn MatmulCallbackFactory::make(MatmulVersion version, const std::optional<
         }
         return cublas_backend_->make_callback();
 
-    case MatmulVersion::COUNT:
+    default:
         break;
     }
 

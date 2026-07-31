@@ -6,7 +6,8 @@
 
 namespace cuda_matmul_lab::detail {
 
-// Owns one cuBLAS handle and creates callbacks that share its lifetime. The callbacks are intended for sequential use
+// Owns one cuBLAS handle. Callbacks returned by make_callback() independently co-own the handle via a shared state
+// object and remain valid even after this CublasBackend is destroyed. The callbacks are intended for sequential use
 // because setting a stream mutates handle state.
 class CublasBackend {
   public:
