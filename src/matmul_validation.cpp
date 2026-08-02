@@ -7,46 +7,11 @@
 #include <cuda_runtime.h>
 
 #include "cuda_check.hpp"
+#include "matmul_kernel_traits.hpp"
 
 namespace cuda_matmul_lab::detail {
 
 namespace {
-
-enum class Requirement {
-    FORBIDDEN,
-    OPTIONAL,
-    REQUIRED,
-};
-
-struct TopologyPolicy {
-    Requirement topology;
-    Requirement tile;
-    Requirement grid_cap;
-};
-
-[[nodiscard]] TopologyPolicy get_topology_policy(MatmulVersion version) {
-    switch (version) {
-    case MatmulVersion::NAIVE:
-    case MatmulVersion::NAIVE_COALESCED:
-        return {
-            .topology = Requirement::REQUIRED,
-            .tile = Requirement::FORBIDDEN,
-            .grid_cap = Requirement::OPTIONAL,
-        };
-
-    case MatmulVersion::CUBLAS:
-        return {
-            .topology = Requirement::FORBIDDEN,
-            .tile = Requirement::FORBIDDEN,
-            .grid_cap = Requirement::FORBIDDEN,
-        };
-
-    case MatmulVersion::COUNT:
-        break;
-    }
-
-    throw std::invalid_argument{"unknown matmul version"};
-}
 
 [[nodiscard]] constexpr bool satisfies(Requirement requirement, bool present) noexcept {
     switch (requirement) {
@@ -105,7 +70,12 @@ void validate_matrix_shapes(MatrixView<const float> A, MatrixView<const float> B
 
 std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersion version,
                                                                     const std::optional<LaunchTopology>& topology) {
-    const auto policy = get_topology_policy(version);
+    constexpr TopologyPolicy backend_policy{
+        .topology = Requirement::FORBIDDEN,
+        .tile = Requirement::FORBIDDEN,
+        .grid_cap = Requirement::FORBIDDEN,
+    };
+    const auto policy = (version == MatmulVersion::CUBLAS) ? backend_policy : get_matmul_kernel_traits(version).policy;
 
     if (!satisfies(policy.topology, topology.has_value())) {
         throw std::invalid_argument{"matmul topology does not match implementation requirements"};

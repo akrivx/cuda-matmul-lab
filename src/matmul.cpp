@@ -1,22 +1,14 @@
 #include "matmul.hpp"
 
-#include <stdexcept>
+#include "matmul_kernel_traits.hpp"
 
 namespace cuda_matmul_lab {
 
 std::string_view get_matmul_name(MatmulVersion version) {
-    switch (version) {
-    case MatmulVersion::NAIVE:
-        return "naive";
-    case MatmulVersion::NAIVE_COALESCED:
-        return "naive_coalesced";
-    case MatmulVersion::CUBLAS:
+    if (version == MatmulVersion::CUBLAS) {
         return "cublas";
-    case MatmulVersion::COUNT:
-        break;
     }
-
-    throw std::invalid_argument{"unknown matmul version"};
+    return detail::get_matmul_kernel_traits(version).name;
 }
 
 } // namespace cuda_matmul_lab

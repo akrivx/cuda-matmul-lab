@@ -43,6 +43,8 @@ add_library(
         src/matmul_callback.hpp
         src/matmul_callback_factory.cpp
         src/matmul_callback_factory.hpp
+        src/matmul_kernel_traits.cpp
+        src/matmul_kernel_traits.hpp
         src/matmul_validation.cpp
         src/matmul_validation.hpp
         src/matrix_view.hpp
