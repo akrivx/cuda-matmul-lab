@@ -100,7 +100,11 @@ struct CliOptions {
     return {
         BenchmarkCase{
             .version = MatmulVersion::NAIVE,
-            .topology = LaunchTopology{.block = BlockShape{.x = 16, .y = 16}},
+            .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 8}},
+        },
+        BenchmarkCase{
+            .version = MatmulVersion::NAIVE_COALESCED,
+            .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 8}},
         },
         BenchmarkCase{
             .version = MatmulVersion::CUBLAS,

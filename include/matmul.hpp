@@ -5,8 +5,9 @@
 namespace cuda_matmul_lab {
 
 enum class MatmulVersion {
-    NAIVE = 0, // One thread per output element
-    CUBLAS,    // cuBLAS baseline
+    NAIVE = 0,       // One thread per output element, row-stride A and C accesses and B broadcasts
+    NAIVE_COALESCED, // One thread per output element, coalesced B and C accesses
+    CUBLAS,          // cuBLAS baseline
     COUNT
 };
 

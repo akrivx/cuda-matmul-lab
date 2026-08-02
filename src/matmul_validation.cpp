@@ -27,6 +27,7 @@ struct TopologyPolicy {
 [[nodiscard]] TopologyPolicy get_topology_policy(MatmulVersion version) {
     switch (version) {
     case MatmulVersion::NAIVE:
+    case MatmulVersion::NAIVE_COALESCED:
         return {
             .topology = Requirement::REQUIRED,
             .tile = Requirement::FORBIDDEN,

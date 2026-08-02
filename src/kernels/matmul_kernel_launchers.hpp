@@ -11,4 +11,8 @@ namespace cuda_matmul_lab::detail {
 void launch_naive_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                          const ResolvedLaunchTopology& topology, cudaStream_t stream);
 
+// Launches the naive CUDA matmul with coalesced B and C accesses.
+void launch_naive_coalesced_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                                   const ResolvedLaunchTopology& topology, cudaStream_t stream);
+
 } // namespace cuda_matmul_lab::detail

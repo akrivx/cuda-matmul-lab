@@ -49,6 +49,7 @@ add_library(
         src/resolved_launch_topology.hpp
         src/kernels/matmul_kernel_launchers.hpp
         src/kernels/naive.cu
+        src/kernels/naive_coalesced.cu
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)
 

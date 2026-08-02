@@ -18,13 +18,20 @@ MatmulFn MatmulCallbackFactory::make(MatmulVersion version, const std::optional<
             launch_naive_kernel(A, B, C, topology, stream);
         };
 
+    case MatmulVersion::NAIVE_COALESCED:
+        return [topology = *resolved_topology](MatrixView<const float> A, MatrixView<const float> B,
+                                               MatrixView<float> C, cudaStream_t stream) {
+            validate_matrix_shapes(A, B, C);
+            launch_naive_coalesced_kernel(A, B, C, topology, stream);
+        };
+
     case MatmulVersion::CUBLAS:
         if (!cublas_backend_) {
             cublas_backend_.emplace();
         }
         return cublas_backend_->make_callback();
 
-    default:
+    case MatmulVersion::COUNT:
         break;
     }
 

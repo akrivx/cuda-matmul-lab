@@ -8,9 +8,11 @@ std::string_view get_matmul_name(MatmulVersion version) {
     switch (version) {
     case MatmulVersion::NAIVE:
         return "naive";
+    case MatmulVersion::NAIVE_COALESCED:
+        return "naive_coalesced";
     case MatmulVersion::CUBLAS:
         return "cublas";
-    default:
+    case MatmulVersion::COUNT:
         break;
     }
 
