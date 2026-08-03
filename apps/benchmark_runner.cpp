@@ -23,6 +23,7 @@ using cuda_matmul_lab::BlockShape;
 using cuda_matmul_lab::LaunchTopology;
 using cuda_matmul_lab::MatmulShape;
 using cuda_matmul_lab::MatmulVersion;
+using cuda_matmul_lab::TileShape;
 
 constexpr std::string_view usage = "Usage: benchmark_runner [options]\n"
                                    "  --m <n>            Rows of A and C (default 1024)\n"
@@ -105,6 +106,18 @@ struct CliOptions {
         BenchmarkCase{
             .version = MatmulVersion::NAIVE_COALESCED,
             .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 8}},
+        },
+        BenchmarkCase{
+            .version = MatmulVersion::TILED,
+            .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 8}},
+        },
+        BenchmarkCase{
+            .version = MatmulVersion::TILED,
+            .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 16}},
+        },
+        BenchmarkCase{
+            .version = MatmulVersion::TILED,
+            .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 32}},
         },
         BenchmarkCase{
             .version = MatmulVersion::CUBLAS,

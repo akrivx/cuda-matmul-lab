@@ -13,12 +13,21 @@ MatmulKernelTraits get_matmul_kernel_traits(MatmulVersion version) {
         .grid_cap = Requirement::OPTIONAL,
     };
 
+    constexpr TopologyPolicy tiled_kernel_policy{
+        .topology = Requirement::REQUIRED,
+        .tile = Requirement::OPTIONAL,
+        .grid_cap = Requirement::OPTIONAL,
+    };
+
     switch (version) {
     case MatmulVersion::NAIVE:
         return {"naive", simple_kernel_policy, &launch_naive_kernel};
 
     case MatmulVersion::NAIVE_COALESCED:
         return {"naive_coalesced", simple_kernel_policy, &launch_naive_coalesced_kernel};
+
+    case MatmulVersion::TILED:
+        return {"tiled", tiled_kernel_policy, &launch_tiled_kernel};
 
     case MatmulVersion::CUBLAS:
     case MatmulVersion::COUNT:

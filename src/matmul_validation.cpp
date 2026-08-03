@@ -105,6 +105,17 @@ std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersio
         throw std::invalid_argument{"tile dimensions m, n, and k must be positive"};
     }
 
+    // TILED loads one element per thread directly indexed by threadIdx.x/y. The grid is sized from tile.n/m, so
+    // block.x/y must exactly match tile.n/m for the grid's assumed per-block coverage to agree with what the block
+    // actually computes. tile.n/m only need to be at least tile.k: the K-slice load is bounds-checked per thread, so
+    // any extra threads beyond tile.k simply sit out that load.
+    if (version == MatmulVersion::TILED && topology->tile &&
+        (topology->block.x != topology->tile->n || topology->block.y != topology->tile->m ||
+         topology->tile->n < topology->tile->k || topology->tile->m < topology->tile->k)) {
+        throw std::invalid_argument{
+            "tiled matmul requires block.x == tile.n, block.y == tile.m, and tile.n/m >= tile.k"};
+    }
+
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
 
