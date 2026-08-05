@@ -24,15 +24,6 @@ namespace cuda_matmul_lab {
 
 namespace {
 
-[[nodiscard]] std::string make_benchmark_name(const BenchmarkCase& benchmark_case) {
-    std::string name{get_matmul_name(benchmark_case.version)};
-    if (benchmark_case.topology) {
-        name += '_';
-        name += to_string(*benchmark_case.topology);
-    }
-    return name;
-}
-
 [[nodiscard]] double compute_relative_error(double absolute_error, double reference_value) {
     if (reference_value == 0.0) {
         return (absolute_error == 0.0 ? 0.0 : std::numeric_limits<double>::infinity());
@@ -265,7 +256,7 @@ class PitchedDeviceMatrixStorage {
     const auto host_result = make_matrix_view(host_result_storage.get(), m, n);
     const CorrectnessResult correctness = evaluate_correctness(config, host_reference, host_result);
     return {
-        .name = make_benchmark_name(benchmark_case),
+        .name = std::string{get_matmul_name(benchmark_case.version)},
         .topology = benchmark_case.topology,
         .mean_ms = mean_ms,
         .median_ms = median_ms,
@@ -359,25 +350,17 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
     out << std::format("M={}, N={}, K={}, warmup={}, timed={}, seed=0x{:X}\n\n", shape.m, shape.n, shape.k,
                        config.warmup_iterations, config.timed_iterations, config.random_seed);
 
-    std::vector<std::string> headers{"Name",    "Mean (ms)",   "Median (ms)", "Min (ms)",
-                                     "GFLOP/s", "Max Abs Err", "Max Rel Err", "Correct"};
+    std::vector<std::string> headers{"Name"};
     if (has_topology) {
         headers.insert(headers.end(), {"Block", "Tile"});
     }
+    headers.insert(headers.end(),
+                   {"Mean (ms)", "Median (ms)", "Min (ms)", "GFLOP/s", "Max Abs Err", "Max Rel Err", "Correct"});
 
     std::vector<std::vector<std::string>> rows;
     rows.reserve(results.size());
     for (const auto& result : results) {
-        std::vector<std::string> row{
-            result.name,
-            std::format("{:.4f}", result.mean_ms),
-            std::format("{:.4f}", result.median_ms),
-            std::format("{:.4f}", result.min_ms),
-            std::format("{:.2f}", result.gflops),
-            std::format("{:.3e}", result.max_abs_error),
-            std::format("{:.3e}", result.max_rel_error),
-            result.correctness_passed ? "yes" : "no",
-        };
+        std::vector<std::string> row{result.name};
 
         if (has_topology) {
             if (result.topology) {
@@ -388,6 +371,16 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
                 row.insert(row.end(), {"-", "-"});
             }
         }
+
+        row.insert(row.end(), {
+                                  std::format("{:.4f}", result.mean_ms),
+                                  std::format("{:.4f}", result.median_ms),
+                                  std::format("{:.4f}", result.min_ms),
+                                  std::format("{:.2f}", result.gflops),
+                                  std::format("{:.3e}", result.max_abs_error),
+                                  std::format("{:.3e}", result.max_rel_error),
+                                  result.correctness_passed ? "yes" : "no",
+                              });
 
         rows.push_back(std::move(row));
     }
@@ -423,14 +416,10 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
 }
 
 void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const BenchmarkResult> results) {
-    out << "Name,M,N,K,MeanMs,MedianMs,MinMs,GFLOPs,MaxAbsErr,MaxRelErr,Correct,BlockX,BlockY,TileM,TileN,TileK\n";
+    out << "Name,BlockX,BlockY,TileM,TileN,TileK,M,N,K,MeanMs,MedianMs,MinMs,GFLOPs,MaxAbsErr,MaxRelErr,Correct\n";
 
     for (const auto& result : results) {
-        out << result.name << ',' << shape.m << ',' << shape.n << ',' << shape.k << ',';
-        out << std::format("{:.6f},{:.6f},{:.6f},{:.6f}", result.mean_ms, result.median_ms, result.min_ms,
-                           result.gflops);
-        out << ',' << std::format("{:.6e},{:.6e}", result.max_abs_error, result.max_rel_error);
-        out << ',' << (result.correctness_passed ? "true" : "false") << ',';
+        out << result.name << ',';
 
         if (result.topology) {
             out << result.topology->block.x;
@@ -451,7 +440,13 @@ void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const Benc
         if (result.topology && result.topology->tile) {
             out << result.topology->tile->k;
         }
-        out << '\n';
+        out << ',';
+
+        out << shape.m << ',' << shape.n << ',' << shape.k << ',';
+        out << std::format("{:.6f},{:.6f},{:.6f},{:.6f}", result.mean_ms, result.median_ms, result.min_ms,
+                           result.gflops);
+        out << ',' << std::format("{:.6e},{:.6e}", result.max_abs_error, result.max_rel_error);
+        out << ',' << (result.correctness_passed ? "true" : "false") << '\n';
     }
 }
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <string>
 
 namespace cuda_matmul_lab {
 
@@ -24,7 +23,5 @@ struct LaunchTopology {
     BlockShape block;
     std::optional<TileShape> tile;
 };
-
-[[nodiscard]] std::string to_string(const LaunchTopology& topology);
 
 } // namespace cuda_matmul_lab

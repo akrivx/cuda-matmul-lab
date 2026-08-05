@@ -38,7 +38,6 @@ add_library(
         src/backends/cublas_check.hpp
         src/benchmark.cpp
         src/cuda_check.hpp
-        src/launch_topology.cpp
         src/matmul.cpp
         src/matmul_callback.hpp
         src/matmul_callback_factory.cpp
