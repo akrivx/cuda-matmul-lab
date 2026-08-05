@@ -116,6 +116,15 @@ std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersio
             "tiled matmul requires block.x == tile.n, block.y == tile.m, and tile.n/m >= tile.k"};
     }
 
+    // THREAD_TILED's per-thread micro-tile (tile.m rows x tile.n cols) sizes a fixed-size register accumulator, so
+    // the kernel is templated on tile.m/n as compile-time constants; only 4, 8, and 16 are instantiated.
+    if (version == MatmulVersion::THREAD_TILED && topology->tile) {
+        const auto is_valid_thread_tile_extent = [](unsigned value) { return value == 4 || value == 8 || value == 16; };
+        if (!is_valid_thread_tile_extent(topology->tile->m) || !is_valid_thread_tile_extent(topology->tile->n)) {
+            throw std::invalid_argument{"thread tiled matmul requires tile.m and tile.n to each be 4, 8, or 16"};
+        }
+    }
+
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
 

@@ -120,6 +120,11 @@ struct CliOptions {
             .topology = LaunchTopology{.block = BlockShape{.x = 32, .y = 32}},
         },
         BenchmarkCase{
+            .version = MatmulVersion::THREAD_TILED,
+            .topology =
+                LaunchTopology{.block = BlockShape{.x = 16, .y = 8}, .tile = TileShape{.m = 16, .n = 8, .k = 8}},
+        },
+        BenchmarkCase{
             .version = MatmulVersion::CUBLAS,
             .topology = std::nullopt,
         },

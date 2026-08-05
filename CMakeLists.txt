@@ -52,6 +52,7 @@ add_library(
         src/kernels/matmul_kernel_launchers.hpp
         src/kernels/naive.cu
         src/kernels/naive_coalesced.cu
+        src/kernels/thread_tiled.cu
         src/kernels/tiled.cu
 )
 add_library(cuda_matmul_lab::cuda_matmul_lab ALIAS cuda_matmul_lab)

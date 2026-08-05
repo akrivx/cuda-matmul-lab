@@ -18,4 +18,7 @@ void launch_naive_coalesced_kernel(MatrixView<const float> A, MatrixView<const f
 void launch_tiled_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                          const ResolvedLaunchTopology& topology, cudaStream_t stream);
 
+void launch_thread_tiled_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
+                                const ResolvedLaunchTopology& topology, cudaStream_t stream);
+
 } // namespace cuda_matmul_lab::detail
