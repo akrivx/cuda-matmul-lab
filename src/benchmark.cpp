@@ -362,7 +362,7 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
     std::vector<std::string> headers{"Name",    "Mean (ms)",   "Median (ms)", "Min (ms)",
                                      "GFLOP/s", "Max Abs Err", "Max Rel Err", "Correct"};
     if (has_topology) {
-        headers.insert(headers.end(), {"Block", "Tile", "Grid Cap"});
+        headers.insert(headers.end(), {"Block", "Tile"});
     }
 
     std::vector<std::vector<std::string>> rows;
@@ -382,12 +382,10 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
         if (has_topology) {
             if (result.topology) {
                 const auto& tile = result.topology->tile;
-                const auto& grid_cap = result.topology->grid_cap;
                 row.push_back(std::format("{}x{}", result.topology->block.x, result.topology->block.y));
                 row.push_back(tile ? std::format("{}x{}x{}", tile->m, tile->n, tile->k) : "-");
-                row.push_back(grid_cap ? std::format("{}x{}", grid_cap->x, grid_cap->y) : "-");
             } else {
-                row.insert(row.end(), {"-", "-", "-"});
+                row.insert(row.end(), {"-", "-"});
             }
         }
 
@@ -425,8 +423,7 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
 }
 
 void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const BenchmarkResult> results) {
-    out << "Name,M,N,K,MeanMs,MedianMs,MinMs,GFLOPs,MaxAbsErr,MaxRelErr,Correct,BlockX,BlockY,TileM,TileN,TileK,"
-           "GridCapX,GridCapY\n";
+    out << "Name,M,N,K,MeanMs,MedianMs,MinMs,GFLOPs,MaxAbsErr,MaxRelErr,Correct,BlockX,BlockY,TileM,TileN,TileK\n";
 
     for (const auto& result : results) {
         out << result.name << ',' << shape.m << ',' << shape.n << ',' << shape.k << ',';
@@ -453,14 +450,6 @@ void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const Benc
         out << ',';
         if (result.topology && result.topology->tile) {
             out << result.topology->tile->k;
-        }
-        out << ',';
-        if (result.topology && result.topology->grid_cap) {
-            out << result.topology->grid_cap->x;
-        }
-        out << ',';
-        if (result.topology && result.topology->grid_cap) {
-            out << result.topology->grid_cap->y;
         }
         out << '\n';
     }

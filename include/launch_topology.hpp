@@ -19,17 +19,10 @@ struct TileShape {
     unsigned k;
 };
 
-// Maximum blocks to launch in each grid dimension; grid-stride loops must cover work beyond this cap.
-struct GridShape {
-    unsigned x;
-    unsigned y;
-};
-
-// Requested launch settings for a hand-written CUDA kernel. An omitted `grid_cap` uses the active device's grid limit.
+// Requested launch settings for a hand-written CUDA kernel.
 struct LaunchTopology {
     BlockShape block;
     std::optional<TileShape> tile;
-    std::optional<GridShape> grid_cap;
 };
 
 [[nodiscard]] std::string to_string(const LaunchTopology& topology);

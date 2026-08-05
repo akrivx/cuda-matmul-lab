@@ -21,7 +21,6 @@ enum class Requirement {
 struct TopologyPolicy {
     Requirement topology;
     Requirement tile;
-    Requirement grid_cap;
 };
 
 // Launches an already-validated, resolved kernel invocation. Matches every hand-written kernel launcher's signature.

@@ -21,7 +21,6 @@ using cuda_matmul_lab::BenchmarkCase;
 using cuda_matmul_lab::BenchmarkConfig;
 using cuda_matmul_lab::BenchmarkSession;
 using cuda_matmul_lab::BlockShape;
-using cuda_matmul_lab::GridShape;
 using cuda_matmul_lab::LaunchTopology;
 using cuda_matmul_lab::MatmulShape;
 using cuda_matmul_lab::MatmulVersion;
@@ -46,10 +45,10 @@ constexpr std::string_view usage =
     "  --title <s>        Report title (default \"cuda-matmul-lab benchmark\"); ignored for --format csv\n"
     "  --format <fmt>     Report format: markdown or csv (default markdown)\n"
     "  --cases <path>     Load benchmark cases from a CSV file instead of the built-in list. Header row:\n"
-    "                     Version,BlockX,BlockY,GridCapX,GridCapY,TileM,TileN,TileK\n"
+    "                     Version,BlockX,BlockY,TileM,TileN,TileK\n"
     "                     Version is a matmul name (e.g. \"naive\", \"cublas\"). All other columns are unsigned\n"
     "                     integers; leave BlockX/BlockY blank for a version with no topology (e.g. cublas), and\n"
-    "                     leave GridCapX/GridCapY or TileM/TileN/TileK blank together to omit that optional field.\n"
+    "                     leave TileM/TileN/TileK blank together to omit that optional field.\n"
     "  --output <path>    Write the report to a file instead of stdout\n"
     "  --help             Show this message\n";
 
@@ -115,19 +114,17 @@ struct CliOptions {
 }
 
 [[nodiscard]] BenchmarkCase parse_benchmark_case_row(const std::vector<std::string>& fields, std::size_t row_number) {
-    if (fields.size() != 8) {
+    if (fields.size() != 6) {
         throw std::invalid_argument{
-            std::format("cases CSV row {}: expected 8 columns, got {}", row_number, fields.size())};
+            std::format("cases CSV row {}: expected 6 columns, got {}", row_number, fields.size())};
     }
 
     const MatmulVersion version = parse_matmul_version(trim(fields[0]));
     const auto block_x = parse_optional_unsigned(trim(fields[1]));
     const auto block_y = parse_optional_unsigned(trim(fields[2]));
-    const auto grid_cap_x = parse_optional_unsigned(trim(fields[3]));
-    const auto grid_cap_y = parse_optional_unsigned(trim(fields[4]));
-    const auto tile_m = parse_optional_unsigned(trim(fields[5]));
-    const auto tile_n = parse_optional_unsigned(trim(fields[6]));
-    const auto tile_k = parse_optional_unsigned(trim(fields[7]));
+    const auto tile_m = parse_optional_unsigned(trim(fields[3]));
+    const auto tile_n = parse_optional_unsigned(trim(fields[4]));
+    const auto tile_k = parse_optional_unsigned(trim(fields[5]));
 
     if (!block_x && !block_y) {
         return BenchmarkCase{.version = version, .topology = std::nullopt};
@@ -146,19 +143,9 @@ struct CliOptions {
         tile = TileShape{.m = *tile_m, .n = *tile_n, .k = *tile_k};
     }
 
-    std::optional<GridShape> grid_cap;
-    if (grid_cap_x || grid_cap_y) {
-        if (!grid_cap_x || !grid_cap_y) {
-            throw std::invalid_argument{
-                std::format("cases CSV row {}: GridCapX and GridCapY must both be set or both blank", row_number)};
-        }
-        grid_cap = GridShape{.x = *grid_cap_x, .y = *grid_cap_y};
-    }
-
     return BenchmarkCase{
         .version = version,
-        .topology =
-            LaunchTopology{.block = BlockShape{.x = *block_x, .y = *block_y}, .tile = tile, .grid_cap = grid_cap},
+        .topology = LaunchTopology{.block = BlockShape{.x = *block_x, .y = *block_y}, .tile = tile},
     };
 }
 

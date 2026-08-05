@@ -86,13 +86,13 @@ class BenchmarkSession {
     std::unique_ptr<Impl> impl_;
 };
 
-// Writes results as a Markdown table, adding block, tile, and grid-cap columns when topology information is available.
+// Writes results as a Markdown table, adding block and tile columns when topology information is available.
 void write_report(std::ostream& out, std::string_view stage_title, MatmulShape shape, const BenchmarkConfig& config,
                   std::span<const BenchmarkResult> results);
 
 // Writes results as CSV (header row plus one row per result) with `shape`'s dimensions and each topology field broken
-// out into its own column (BlockX, BlockY, TileM, TileN, TileK, GridCapX, GridCapY), blank where not applicable.
-// Intended for feeding benchmark sweeps into external analysis or auto-tuning tools.
+// out into its own column (BlockX, BlockY, TileM, TileN, TileK), blank where not applicable. Intended for feeding
+// benchmark sweeps into external analysis or auto-tuning tools.
 void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const BenchmarkResult> results);
 
 } // namespace cuda_matmul_lab

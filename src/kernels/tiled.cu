@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cstddef>
 
 #include <cuda/cmath>
@@ -35,32 +34,26 @@ __global__ void tiled_matmul_kernel(MatrixView<const float> A, MatrixView<const 
     auto A_tile = cuda_matmul_lab::make_matrix_view(shared_mem, blockDim.y, tile_k_dim);
     auto B_tile = cuda_matmul_lab::make_matrix_view(shared_mem + blockDim.y * tile_k_dim, tile_k_dim, blockDim.x);
 
-    const std::size_t first_tile_row = std::size_t{blockIdx.y} * blockDim.y;
-    const std::size_t first_tile_col = std::size_t{blockIdx.x} * blockDim.x;
-    const std::size_t tile_row_stride = std::size_t{blockDim.y} * gridDim.y;
-    const std::size_t tile_col_stride = std::size_t{blockDim.x} * gridDim.x;
+    const std::size_t row = std::size_t{blockIdx.y} * blockDim.y + threadIdx.y;
+    const std::size_t col = std::size_t{blockIdx.x} * blockDim.x + threadIdx.x;
 
-    for (std::size_t tile_row = first_tile_row; tile_row < C.extent(0); tile_row += tile_row_stride) {
-        for (std::size_t tile_col = first_tile_col; tile_col < C.extent(1); tile_col += tile_col_stride) {
-            const std::size_t row = tile_row + threadIdx.y;
-            const std::size_t col = tile_col + threadIdx.x;
+    // No early return here for out-of-bounds row/col: load_tile already zero-pads out-of-range reads, and every
+    // thread in the block must keep reaching __syncthreads() below regardless of whether its own output is in
+    // bounds. Only the final write is guarded.
+    float value = 0.0f;
+    for (std::size_t tile_k = 0; tile_k < A.extent(1); tile_k += tile_k_dim) {
+        load_tile(A, row, tile_k + threadIdx.x, A_tile, threadIdx.y, threadIdx.x);
+        load_tile(B, tile_k + threadIdx.y, col, B_tile, threadIdx.y, threadIdx.x);
+        __syncthreads();
 
-            float value = 0.0f;
-            for (std::size_t tile_k = 0; tile_k < A.extent(1); tile_k += tile_k_dim) {
-                load_tile(A, row, tile_k + threadIdx.x, A_tile, threadIdx.y, threadIdx.x);
-                load_tile(B, tile_k + threadIdx.y, col, B_tile, threadIdx.y, threadIdx.x);
-                __syncthreads();
-
-                for (std::size_t k = 0; k < tile_k_dim; ++k) {
-                    value += A_tile(threadIdx.y, k) * B_tile(k, threadIdx.x);
-                }
-                __syncthreads();
-            }
-
-            if (row < C.extent(0) && col < C.extent(1)) {
-                C(row, col) = value;
-            }
+        for (std::size_t k = 0; k < tile_k_dim; ++k) {
+            value += A_tile(threadIdx.y, k) * B_tile(k, threadIdx.x);
         }
+        __syncthreads();
+    }
+
+    if (row < C.extent(0) && col < C.extent(1)) {
+        C(row, col) = value;
     }
 }
 
@@ -73,10 +66,8 @@ void launch_tiled_kernel(MatrixView<const float> A, MatrixView<const float> B, M
     const TileShape tile = topology.tile.value();
     const std::size_t total_tile_bytes = (tile.m * tile.k + tile.k * tile.n) * sizeof(float);
 
-    const auto required_blocks_x = cuda::ceil_div(C.extent(1), std::size_t{tile.n});
-    const auto required_blocks_y = cuda::ceil_div(C.extent(0), std::size_t{tile.m});
-    const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
-    const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
+    const auto grid_x = static_cast<unsigned>(cuda::ceil_div(C.extent(1), std::size_t{tile.n}));
+    const auto grid_y = static_cast<unsigned>(cuda::ceil_div(C.extent(0), std::size_t{tile.m}));
 
     const dim3 block{topology.block.x, topology.block.y};
     const dim3 grid{grid_x, grid_y};

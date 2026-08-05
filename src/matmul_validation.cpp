@@ -73,7 +73,6 @@ std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersio
     constexpr TopologyPolicy backend_policy{
         .topology = Requirement::FORBIDDEN,
         .tile = Requirement::FORBIDDEN,
-        .grid_cap = Requirement::FORBIDDEN,
     };
     const auto policy = (version == MatmulVersion::CUBLAS) ? backend_policy : get_matmul_kernel_traits(version).policy;
 
@@ -88,16 +87,9 @@ std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersio
     if (!satisfies(policy.tile, topology->tile.has_value())) {
         throw std::invalid_argument{"matmul tile topology does not match implementation requirements"};
     }
-    if (!satisfies(policy.grid_cap, topology->grid_cap.has_value())) {
-        throw std::invalid_argument{"matmul grid-cap topology does not match implementation requirements"};
-    }
 
     if (topology->block.x == 0 || topology->block.y == 0) {
         throw std::invalid_argument{"block dimensions x and y must be positive"};
-    }
-
-    if (topology->grid_cap && (topology->grid_cap->x == 0 || topology->grid_cap->y == 0)) {
-        throw std::invalid_argument{"grid cap x and y must be positive"};
     }
 
     if (topology->tile && (topology->tile->m == 0 || topology->tile->n == 0 || topology->tile->k == 0)) {
@@ -137,19 +129,9 @@ std::optional<ResolvedLaunchTopology> validate_and_resolve_topology(MatmulVersio
         throw std::invalid_argument{"block shape exceeds the active CUDA device limits"};
     }
 
-    const GridShape device_grid_limit{
-        static_cast<unsigned>(properties.maxGridSize[0]),
-        static_cast<unsigned>(properties.maxGridSize[1]),
-    };
-    const GridShape grid_limit = topology->grid_cap.value_or(device_grid_limit);
-    if (grid_limit.x > device_grid_limit.x || grid_limit.y > device_grid_limit.y) {
-        throw std::invalid_argument{"grid cap exceeds the active CUDA device limits"};
-    }
-
     return ResolvedLaunchTopology{
         .block = topology->block,
         .tile = topology->tile,
-        .grid_cap = grid_limit,
     };
 }
 

@@ -9,9 +9,6 @@ std::string to_string(const LaunchTopology& topology) {
     if (topology.tile) {
         result += std::format("_tile{}x{}x{}", topology.tile->m, topology.tile->n, topology.tile->k);
     }
-    if (topology.grid_cap) {
-        result += std::format("_grid_cap{}x{}", topology.grid_cap->x, topology.grid_cap->y);
-    }
     return result;
 }
 

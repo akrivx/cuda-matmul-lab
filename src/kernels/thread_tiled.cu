@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 
@@ -47,49 +46,40 @@ __global__ void thread_tiled_matmul_kernel(MatrixView<const float> A, MatrixView
     auto B_tile =
         cuda_matmul_lab::make_matrix_view(shared_mem + block_tile.m * block_tile.k, block_tile.k, block_tile.n);
 
-    const std::size_t first_tile_row = std::size_t{blockIdx.y} * block_tile.m;
-    const std::size_t first_tile_col = std::size_t{blockIdx.x} * block_tile.n;
-    const std::size_t tile_row_stride = std::size_t{block_tile.m} * gridDim.y;
-    const std::size_t tile_col_stride = std::size_t{block_tile.n} * gridDim.x;
+    const std::size_t tile_row = std::size_t{blockIdx.y} * block_tile.m;
+    const std::size_t tile_col = std::size_t{blockIdx.x} * block_tile.n;
 
     float A_reg[TM];
     float B_reg[TN];
+    float accum_reg[TM][TN] = {0.0f};
 
-    for (std::size_t tile_row = first_tile_row; tile_row < C.extent(0); tile_row += tile_row_stride) {
-        for (std::size_t tile_col = first_tile_col; tile_col < C.extent(1); tile_col += tile_col_stride) {
-            // Fresh per output tile: without this reset, a block that grid-strides across more than one tile
-            // position would keep accumulating into the same registers instead of starting a new sum.
-            float accum_reg[TM][TN] = {0.0f};
+    for (std::size_t tile_k = 0; tile_k < A.extent(1); tile_k += block_tile.k) {
+        load_shared_tile(A, A_tile, tile_row, tile_k);
+        load_shared_tile(B, B_tile, tile_k, tile_col);
+        __syncthreads();
 
-            for (std::size_t tile_k = 0; tile_k < A.extent(1); tile_k += block_tile.k) {
-                load_shared_tile(A, A_tile, tile_row, tile_k);
-                load_shared_tile(B, B_tile, tile_k, tile_col);
-                __syncthreads();
-
-                for (std::size_t k = 0; k < block_tile.k; ++k) {
-                    for (unsigned y = 0; y < TM; ++y) {
-                        A_reg[y] = A_tile(threadIdx.y * TM + y, k);
-                    }
-                    for (unsigned x = 0; x < TN; ++x) {
-                        B_reg[x] = B_tile(k, threadIdx.x * TN + x);
-                    }
-                    for (unsigned y = 0; y < TM; ++y) {
-                        for (unsigned x = 0; x < TN; ++x) {
-                            accum_reg[y][x] += A_reg[y] * B_reg[x];
-                        }
-                    }
-                }
-                __syncthreads();
+        for (std::size_t k = 0; k < block_tile.k; ++k) {
+            for (unsigned y = 0; y < TM; ++y) {
+                A_reg[y] = A_tile(threadIdx.y * TM + y, k);
             }
-
+            for (unsigned x = 0; x < TN; ++x) {
+                B_reg[x] = B_tile(k, threadIdx.x * TN + x);
+            }
             for (unsigned y = 0; y < TM; ++y) {
                 for (unsigned x = 0; x < TN; ++x) {
-                    const auto out_row = tile_row + threadIdx.y * TM + y;
-                    const auto out_col = tile_col + threadIdx.x * TN + x;
-                    if (out_row < C.extent(0) && out_col < C.extent(1)) {
-                        C(out_row, out_col) = accum_reg[y][x];
-                    }
+                    accum_reg[y][x] += A_reg[y] * B_reg[x];
                 }
+            }
+        }
+        __syncthreads();
+    }
+
+    for (unsigned y = 0; y < TM; ++y) {
+        for (unsigned x = 0; x < TN; ++x) {
+            const auto out_row = tile_row + threadIdx.y * TM + y;
+            const auto out_col = tile_col + threadIdx.x * TN + x;
+            if (out_row < C.extent(0) && out_col < C.extent(1)) {
+                C(out_row, out_col) = accum_reg[y][x];
             }
         }
     }
@@ -146,10 +136,8 @@ void launch_thread_tiled_kernel(MatrixView<const float> A, MatrixView<const floa
 
     const std::size_t total_tile_bytes = (block_tile.m * block_tile.k + block_tile.k * block_tile.n) * sizeof(float);
 
-    const auto required_blocks_x = cuda::ceil_div(C.extent(1), std::size_t{block_tile.n});
-    const auto required_blocks_y = cuda::ceil_div(C.extent(0), std::size_t{block_tile.m});
-    const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
-    const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
+    const auto grid_x = static_cast<unsigned>(cuda::ceil_div(C.extent(1), std::size_t{block_tile.n}));
+    const auto grid_y = static_cast<unsigned>(cuda::ceil_div(C.extent(0), std::size_t{block_tile.m}));
 
     const dim3 block{topology.block.x, topology.block.y};
     const dim3 grid{grid_x, grid_y};
