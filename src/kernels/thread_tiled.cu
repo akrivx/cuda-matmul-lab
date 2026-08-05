@@ -151,8 +151,8 @@ void launch_thread_tiled_kernel(MatrixView<const float> A, MatrixView<const floa
     const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
     const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
 
-    const dim3 block{topology.block.x, topology.block.y, 1};
-    const dim3 grid{grid_x, grid_y, 1};
+    const dim3 block{topology.block.x, topology.block.y};
+    const dim3 grid{grid_x, grid_y};
     launch_thread_tiled_matmul_kernel_impl(A, B, C, block_tile, thread_tile, grid, block, total_tile_bytes, stream);
     CUDA_CHECK(cudaGetLastError());
 }

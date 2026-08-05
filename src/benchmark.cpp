@@ -383,10 +383,9 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
             if (result.topology) {
                 const auto& tile = result.topology->tile;
                 const auto& grid_cap = result.topology->grid_cap;
-                row.push_back(std::format("{}x{}x{}", result.topology->block.x, result.topology->block.y,
-                                          result.topology->block.z));
+                row.push_back(std::format("{}x{}", result.topology->block.x, result.topology->block.y));
                 row.push_back(tile ? std::format("{}x{}x{}", tile->m, tile->n, tile->k) : "-");
-                row.push_back(grid_cap ? std::format("{}x{}x{}", grid_cap->x, grid_cap->y, grid_cap->z) : "-");
+                row.push_back(grid_cap ? std::format("{}x{}", grid_cap->x, grid_cap->y) : "-");
             } else {
                 row.insert(row.end(), {"-", "-", "-"});
             }
@@ -423,6 +422,48 @@ void write_report(std::ostream& out, std::string_view stage_title, MatmulShape s
         write_row(row);
     }
     out << '\n';
+}
+
+void write_csv_report(std::ostream& out, MatmulShape shape, std::span<const BenchmarkResult> results) {
+    out << "Name,M,N,K,MeanMs,MedianMs,MinMs,GFLOPs,MaxAbsErr,MaxRelErr,Correct,BlockX,BlockY,TileM,TileN,TileK,"
+           "GridCapX,GridCapY\n";
+
+    for (const auto& result : results) {
+        out << result.name << ',' << shape.m << ',' << shape.n << ',' << shape.k << ',';
+        out << std::format("{:.6f},{:.6f},{:.6f},{:.6f}", result.mean_ms, result.median_ms, result.min_ms,
+                           result.gflops);
+        out << ',' << std::format("{:.6e},{:.6e}", result.max_abs_error, result.max_rel_error);
+        out << ',' << (result.correctness_passed ? "true" : "false") << ',';
+
+        if (result.topology) {
+            out << result.topology->block.x;
+        }
+        out << ',';
+        if (result.topology) {
+            out << result.topology->block.y;
+        }
+        out << ',';
+        if (result.topology && result.topology->tile) {
+            out << result.topology->tile->m;
+        }
+        out << ',';
+        if (result.topology && result.topology->tile) {
+            out << result.topology->tile->n;
+        }
+        out << ',';
+        if (result.topology && result.topology->tile) {
+            out << result.topology->tile->k;
+        }
+        out << ',';
+        if (result.topology && result.topology->grid_cap) {
+            out << result.topology->grid_cap->x;
+        }
+        out << ',';
+        if (result.topology && result.topology->grid_cap) {
+            out << result.topology->grid_cap->y;
+        }
+        out << '\n';
+    }
 }
 
 } // namespace cuda_matmul_lab

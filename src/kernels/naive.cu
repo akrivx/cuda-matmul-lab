@@ -43,8 +43,8 @@ void launch_naive_kernel(MatrixView<const float> A, MatrixView<const float> B, M
     const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
     const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
 
-    const dim3 block{topology.block.x, topology.block.y, 1};
-    const dim3 grid{grid_x, grid_y, 1};
+    const dim3 block{topology.block.x, topology.block.y};
+    const dim3 grid{grid_x, grid_y};
     naive_matmul_kernel<<<grid, block, 0, stream>>>(A, B, C);
     CUDA_CHECK(cudaGetLastError());
 }

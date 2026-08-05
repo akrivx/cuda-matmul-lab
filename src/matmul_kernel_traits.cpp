@@ -15,7 +15,7 @@ MatmulKernelTraits get_matmul_kernel_traits(MatmulVersion version) {
 
     constexpr TopologyPolicy tiled_kernel_policy{
         .topology = Requirement::REQUIRED,
-        .tile = Requirement::OPTIONAL,
+        .tile = Requirement::REQUIRED,
         .grid_cap = Requirement::OPTIONAL,
     };
 

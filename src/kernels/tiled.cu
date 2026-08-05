@@ -70,13 +70,7 @@ namespace cuda_matmul_lab::detail {
 
 void launch_tiled_kernel(MatrixView<const float> A, MatrixView<const float> B, MatrixView<float> C,
                          const ResolvedLaunchTopology& topology, cudaStream_t stream) {
-    // With no explicit tile, derive one from the block so the constraints validate_and_resolve_topology enforces
-    // (block.x == tile.n, block.y == tile.m, tile.n/m >= tile.k) hold automatically for whatever block was requested.
-    const TileShape tile = topology.tile.value_or(TileShape{
-        .m = topology.block.y,
-        .n = topology.block.x,
-        .k = std::min(topology.block.x, topology.block.y),
-    });
+    const TileShape tile = topology.tile.value();
     const std::size_t total_tile_bytes = (tile.m * tile.k + tile.k * tile.n) * sizeof(float);
 
     const auto required_blocks_x = cuda::ceil_div(C.extent(1), std::size_t{tile.n});
@@ -84,8 +78,8 @@ void launch_tiled_kernel(MatrixView<const float> A, MatrixView<const float> B, M
     const auto grid_x = static_cast<unsigned>(std::min(required_blocks_x, std::size_t{topology.grid_cap.x}));
     const auto grid_y = static_cast<unsigned>(std::min(required_blocks_y, std::size_t{topology.grid_cap.y}));
 
-    const dim3 block{topology.block.x, topology.block.y, 1};
-    const dim3 grid{grid_x, grid_y, 1};
+    const dim3 block{topology.block.x, topology.block.y};
+    const dim3 grid{grid_x, grid_y};
     tiled_matmul_kernel<<<grid, block, total_tile_bytes, stream>>>(A, B, C, tile.k);
     CUDA_CHECK(cudaGetLastError());
 }
